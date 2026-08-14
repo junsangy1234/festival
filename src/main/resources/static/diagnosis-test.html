@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>축제날씨 API 테스트</title>
+    <style>
+        :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        body { margin: 0; background: #f5f7fb; color: #172033; }
+        main { max-width: 1120px; margin: 0 auto; padding: 32px 20px 64px; }
+        h1 { margin: 0 0 8px; font-size: 28px; }
+        .description { margin: 0 0 24px; color: #667085; }
+        .grid { display: grid; grid-template-columns: minmax(320px, 430px) minmax(0, 1fr); gap: 20px; align-items: start; }
+        section { background: #fff; border: 1px solid #e5e8ef; border-radius: 14px; padding: 20px; box-shadow: 0 6px 20px rgba(22, 34, 58, .05); }
+        h2 { font-size: 18px; margin: 0 0 16px; }
+        form { display: grid; gap: 12px; }
+        .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        label { display: grid; gap: 6px; font-size: 13px; font-weight: 650; color: #475467; }
+        input, select { box-sizing: border-box; width: 100%; border: 1px solid #d0d5dd; border-radius: 8px; padding: 10px; font: inherit; background: #fff; }
+        button { border: 0; border-radius: 8px; background: #2457d6; color: #fff; padding: 12px; font: inherit; font-weight: 700; cursor: pointer; }
+        button:disabled { opacity: .6; cursor: wait; }
+        .notice { min-height: 20px; margin: 0 0 10px; color: #475467; font-size: 14px; }
+        .notice.error { color: #b42318; }
+        .status { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .badge { display: inline-flex; border-radius: 999px; padding: 5px 9px; background: #eef2ff; color: #3448a6; font-size: 12px; font-weight: 700; }
+        pre { margin: 0; overflow: auto; max-height: 680px; border-radius: 10px; padding: 14px; background: #101828; color: #d0d5dd; font-size: 12px; line-height: 1.5; }
+        .hidden { display: none; }
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<main>
+    <h1>축제날씨 진단 API 테스트</h1>
+    <p class="description">진단 요청을 보내고 M2 대시보드 응답 전체를 확인하는 임시 개발 화면이야.</p>
+
+    <div class="grid">
+        <section>
+            <h2>진단 입력</h2>
+            <form id="diagnosis-form">
+                <label>축제명<input name="festivalName" value="원주 여름 음악축제" required></label>
+                <div class="two">
+                    <label>시·도<select name="areaCode" id="area-code" required></select></label>
+                    <label>시·군·구<select name="signguCode" id="signgu-code" required></select></label>
+                </div>
+                <div class="two">
+                    <label>시작일<input type="date" name="startDate" required></label>
+                    <label>종료일<input type="date" name="endDate" required></label>
+                </div>
+                <div class="two">
+                    <label>축제 종류
+                        <select name="festivalType">
+                            <option value="문화예술">문화예술</option>
+                            <option value="전통역사">전통역사</option>
+                            <option value="생태자연">생태자연</option>
+                            <option value="특산물">특산물</option>
+                            <option value="기타">기타</option>
+                        </select>
+                    </label>
+                    <label>규모
+                        <select name="scale"><option value="소규모">소규모</option><option value="중규모" selected>중규모</option><option value="대규모">대규모</option></select>
+                    </label>
+                </div>
+                <label>개최 유형
+                    <select name="recurrenceType" id="recurrence-type"><option value="신규" selected>신규</option><option value="재개최">재개최</option></select>
+                </label>
+                <div id="new-location-fields">
+                    <label>축제 주소<input name="festivalAddress" value="강원특별자치도 원주시 지정면 소금산로 12"></label>
+                    <div class="two">
+                        <label>위도<input type="number" name="latitude" value="37.3682" step="0.0000001"></label>
+                        <label>경도<input type="number" name="longitude" value="127.8166" step="0.0000001"></label>
+                    </div>
+                </div>
+                <label id="existing-content-field" class="hidden">기존 축제 contentId<input name="existingFestivalContentId" placeholder="재개최일 때 입력"></label>
+                <button id="submit-button" type="submit">진단 실행</button>
+            </form>
+        </section>
+
+        <section>
+            <h2>M2 대시보드 응답</h2>
+            <p id="notice" class="notice">입력 후 진단 실행을 누르면 결과가 표시돼.</p>
+            <div id="status-list" class="status"></div>
+            <pre id="result">아직 요청하지 않았어.</pre>
+        </section>
+    </div>
+</main>
+
+<script>
+    const form = document.getElementById('diagnosis-form');
+    const recurrenceType = document.getElementById('recurrence-type');
+    const areaCode = document.getElementById('area-code');
+    const signguCode = document.getElementById('signgu-code');
+    const newLocationFields = document.getElementById('new-location-fields');
+    const existingContentField = document.getElementById('existing-content-field');
+    const notice = document.getElementById('notice');
+    const result = document.getElementById('result');
+    const statusList = document.getElementById('status-list');
+    const submitButton = document.getElementById('submit-button');
+
+    const dateText = date => date.toISOString().slice(0, 10);
+    const today = new Date();
+    const start = new Date(today); start.setDate(today.getDate() + 7);
+    const end = new Date(today); end.setDate(today.getDate() + 10);
+    form.startDate.value = dateText(start);
+    form.endDate.value = dateText(end);
+
+    loadRegions().catch(error => {
+        notice.className = 'notice error';
+        notice.textContent = `지역 목록을 불러오지 못했어: ${error.message}`;
+    });
+
+    areaCode.addEventListener('change', () => loadDistricts(areaCode.value));
+
+    recurrenceType.addEventListener('change', () => {
+        const isNew = recurrenceType.value === '신규';
+        newLocationFields.classList.toggle('hidden', !isNew);
+        existingContentField.classList.toggle('hidden', isNew);
+    });
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const values = new FormData(form);
+        const isNew = values.get('recurrenceType') === '신규';
+        const payload = {
+            festivalName: values.get('festivalName'),
+            areaCode: values.get('areaCode'),
+            signguCode: values.get('signguCode'),
+            startDate: values.get('startDate'),
+            endDate: values.get('endDate'),
+            festivalType: values.get('festivalType'),
+            scale: values.get('scale'),
+            recurrenceType: values.get('recurrenceType'),
+            existingFestivalContentId: isNew ? null : values.get('existingFestivalContentId'),
+            festivalAddress: isNew ? values.get('festivalAddress') : null,
+            latitude: isNew ? Number(values.get('latitude')) : null,
+            longitude: isNew ? Number(values.get('longitude')) : null
+        };
+
+        submitButton.disabled = true;
+        notice.className = 'notice';
+        notice.textContent = '진단을 실행하고 있어…';
+        statusList.replaceChildren();
+        try {
+            const created = await request('/api/v1/reports', { method: 'POST', body: JSON.stringify(payload) });
+            const dashboard = await request(`/api/v1/reports/${created.reportId}/dashboard`);
+            notice.textContent = `reportId: ${created.reportId} / 상태: ${dashboard.status}`;
+            renderStatuses(dashboard.dataStatuses || []);
+            result.textContent = JSON.stringify(dashboard, null, 2);
+        } catch (error) {
+            notice.className = 'notice error';
+            notice.textContent = error.message;
+            result.textContent = '요청 실패';
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    async function request(url, options = {}) {
+        const response = await fetch(url, {
+            headers: { 'Content-Type': 'application/json' },
+            ...options
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.message || `HTTP ${response.status}`);
+        return body;
+    }
+
+    async function loadRegions() {
+        const response = await request('/api/v1/diagnosis-regions');
+        areaCode.replaceChildren();
+        response.regions.forEach(region => areaCode.add(new Option(region.name, region.areaCode)));
+        const gangwon = response.regions.find(region => region.areaCode === '51');
+        if (gangwon) areaCode.value = gangwon.areaCode;
+        await loadDistricts(areaCode.value);
+    }
+
+    async function loadDistricts(selectedAreaCode) {
+        const response = await request(`/api/v1/diagnosis-regions/${selectedAreaCode}/districts`);
+        signguCode.replaceChildren();
+        response.districts.forEach(district => signguCode.add(new Option(district.name, district.signguCode)));
+        const wonju = response.districts.find(district => district.signguCode === '51130');
+        if (wonju) signguCode.value = wonju.signguCode;
+    }
+
+    function renderStatuses(statuses) {
+        statuses.forEach(item => {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = `${item.source}: ${item.status}`;
+            statusList.append(badge);
+        });
+    }
+</script>
+</body>
+</html>

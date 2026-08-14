@@ -1,0 +1,43 @@
+diagnosis:
+  recommendation-catalog:
+    recommendations:
+      - recommendation-code: O-INF-001
+        priority: 1
+        title: "셔틀 증차 및 주차 분산 안내"
+        default-action: "급상승 관광지 주변 셔틀을 증차하고 주차 분산 안내를 제공한다."
+        related-risk-codes: [R-VOL-001]
+        category: 인프라
+        difficulty: 하
+        enabled: true
+      - recommendation-code: O-PRO-003
+        priority: 2
+        title: "경합 축제 대비 차별화 홍보"
+        default-action: "50km 이내 경합 축제와 다른 테마와 메시지로 홍보한다."
+        related-risk-codes: [R-COMP-001]
+        category: 홍보
+        difficulty: 하
+        enabled: true
+      - recommendation-code: O-INF-002
+        priority: 3
+        title: "축제장 진입로 및 우회 안내 검토"
+        default-action: "관광지 흐름 편중에 대비해 진입 동선과 우회 안내를 검토한다."
+        related-risk-codes: [R-VOL-004]
+        category: 인프라
+        difficulty: 중
+        enabled: false
+      - recommendation-code: O-PRG-002
+        priority: 4
+        title: "개최 첫날 시그니처 프로그램 편성"
+        default-action: "첫날 유입을 보완할 개막 프로그램을 편성한다."
+        related-risk-codes: [R-DEM-004]
+        category: 프로그램
+        difficulty: 중
+        enabled: false
+      - recommendation-code: O-DIS-002
+        priority: 5
+        title: "연계 관광 코스 재편"
+        default-action: "연계성 하락을 보완할 관광 코스를 재편한다."
+        related-risk-codes: [R-YEAR-002]
+        category: 분산
+        difficulty: 중
+        enabled: false
