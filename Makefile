@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init-env run test build up rebuild down restart ps logs logs-app logs-db clean reset db compose-config
+.PHONY: help init-env run run-ai test build up rebuild down restart ps logs logs-app logs-db clean reset db compose-config
 
 help: ## 사용할 수 있는 명령어 표시
 	@awk 'BEGIN {FS = ":.*##"}; /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -14,6 +14,9 @@ init-env: ## .env.example을 복사해 .env 생성 (기존 .env는 유지)
 
 run: ## H2를 사용하는 local 프로필로 애플리케이션 실행
 	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; ./gradlew bootRun --args='--spring.profiles.active=local'
+
+run-ai: ## 루트 .env를 읽어 ai-service를 로컬 실행 (Part 6)
+	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; cd ai-service && python -m uvicorn app.main:app --port $${AI_SERVICE_PORT:-8000}
 
 test: ## 전체 테스트 실행
 	./gradlew test

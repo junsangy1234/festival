@@ -321,6 +321,7 @@ M2 대시보드 응답은 아래 영역으로 구성한다. 종합 지수·순�
 ## AI 서비스 (ai-service)
 
 Part 6의 AI 4방향은 별도 FastAPI 서비스가 담당하고, Anthropic Claude Sonnet 4.5를 사용한다.
+환경변수는 저장소 루트 `.env` 하나만 쓴다(`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JAVA_BACKEND_BASE_URL`). 로컬 실행은 `make run-ai`.
 
 | API | 방향 | 폴백 |
 | --- | --- | --- |
