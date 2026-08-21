@@ -13,8 +13,8 @@ diagnosis:
         recommendation-codes: [O-INF-001]
         enabled: true
       - risk-code: R-COMP-001
-        title: "50km 이내 경합 축제 존재"
-        description: "동기간 50km 이내 경합 축제가 {value}건 확인되었습니다."
+        title: "동기간 인근 축제 존재"
+        description: "동기간 50km 이내 인근 축제가 {value}건 확인되었습니다."
         severity: WARNING
         priority: 2
         metric-key: COMPETING_FESTIVAL_COUNT_50KM
@@ -22,6 +22,63 @@ diagnosis:
         threshold: 1
         evidence-fields: [festivalNames]
         recommendation-codes: [O-PRO-003]
+        enabled: true
+      # 기획서 5.5.1 · 축제장 좌표가 정확할 때만 판정한다(시군구 중심 근사면 지표 자체가 없다).
+      - risk-code: R-VOL-005
+        title: "축제장 최인접 관광지 급상승 예상"
+        description: "축제장에서 {distanceKm}km 떨어진 {placeName}의 상승폭이 +{value}%p로 예상됩니다."
+        severity: WARNING
+        priority: 2
+        metric-key: NEAREST_PLACE_PEAK_INCREASE
+        operator: GREATER_THAN_OR_EQUAL
+        threshold: 20
+        evidence-fields: [placeName, date, distanceKm]
+        recommendation-codes: [O-INF-003]
+        enabled: true
+      - risk-code: R-COMP-002
+        title: "인접 시군구 동기간 축제 2건 이상"
+        description: "동기간 50km 이내 인근 축제가 {value}건입니다."
+        severity: WARNING
+        priority: 4
+        metric-key: COMPETING_FESTIVAL_COUNT_50KM
+        operator: GREATER_THAN_OR_EQUAL
+        threshold: 2
+        evidence-fields: [festivalNames]
+        recommendation-codes: [O-PRO-003]
+        enabled: true
+      # CSV #9 실측 방문객수 기준(부록 A · 방문 10만+)
+      - risk-code: R-COMP-003
+        title: "인접 대규모 축제 존재"
+        description: "동기간 인근에 방문 10만 이상 대규모 축제가 {value}건 있습니다."
+        severity: CRITICAL
+        priority: 2
+        metric-key: COMPETING_LARGE_FESTIVAL_COUNT
+        operator: GREATER_THAN_OR_EQUAL
+        threshold: 1
+        evidence-fields: [festivalNames]
+        recommendation-codes: [O-SCH-001]
+        enabled: true
+      - risk-code: R-YEAR-002
+        title: "최초 개최 3년 이내 · 미검증 축제"
+        description: "최초 개최연도({firstHeldYear})가 최근 3년 이내입니다."
+        severity: WARNING
+        priority: 5
+        metric-key: FESTIVAL_HISTORY_YEARS_SINCE_FIRST
+        operator: LESS_THAN_OR_EQUAL
+        threshold: 3
+        evidence-fields: [firstHeldYear]
+        recommendation-codes: []
+        enabled: true
+      - risk-code: R-YEAR-003
+        title: "역대급 규모 · 안전 관리 강화 권고"
+        description: "작년 방문객수가 {value}명으로 역대급 규모입니다."
+        severity: WARNING
+        priority: 3
+        metric-key: FESTIVAL_HISTORY_LAST_YEAR_VISITORS
+        operator: GREATER_THAN_OR_EQUAL
+        threshold: 1000000
+        evidence-fields: [festivalName]
+        recommendation-codes: [O-PRG-003]
         enabled: true
       # 아래 규칙은 기존 정책을 보존한 예시다. 현재 정제 지표가 확정되기 전까지 실행하지 않는다.
       - risk-code: R-VOL-004

@@ -17,6 +17,18 @@ services:
       postgres:
         condition: service_healthy
 
+  ai-service:
+    build:
+      context: ./ai-service
+    ports:
+      - "${AI_SERVICE_PORT:-8000}:8000"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      JAVA_BACKEND_BASE_URL: http://app:8080
+    depends_on:
+      app:
+        condition: service_started
+
   postgres:
     image: postgres:17-alpine
     environment:

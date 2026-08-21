@@ -49,14 +49,11 @@ public record DiagnosisRequest(
         return recurrenceType == RecurrenceType.RECURRING ? hasContentId : !hasContentId;
     }
 
-    @AssertTrue(message = "신규 축제는 festivalAddress, latitude, longitude가 필요합니다.")
+    // 기획서 5.5.2 · 신규 축제의 축제장 위치는 선택 입력이다.
+    // 미입력이면 시군구 대표 좌표로 근사하고 위치 기반 규칙만 건너뛴다(5.5.3).
+    @AssertTrue(message = "위도와 경도는 함께 입력해야 합니다.")
     public boolean isNewFestivalLocationValid() {
-        if (recurrenceType != RecurrenceType.NEW) {
-            return true;
-        }
-        return festivalAddress != null && !festivalAddress.isBlank()
-                && latitude != null
-                && longitude != null;
+        return (latitude == null) == (longitude == null);
     }
 
 }

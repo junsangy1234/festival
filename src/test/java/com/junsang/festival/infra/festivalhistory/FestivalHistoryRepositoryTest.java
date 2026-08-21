@@ -1,0 +1,47 @@
+package com.junsang.festival.infra.festivalhistory;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.io.DefaultResourceLoader;
+
+import java.math.BigDecimal;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class FestivalHistoryRepositoryTest {
+
+    private FestivalHistoryRepository repository;
+
+    @BeforeEach
+    void setUp() {
+        repository = new FestivalHistoryRepository(
+                new DefaultResourceLoader(), "classpath:data/festival-history-sample.csv"
+        );
+        repository.load();
+    }
+
+    @Test
+    void 회차_접두사가_붙은_축제명도_실적을_찾는다() {
+        var record = repository.findByFestivalName("제17회 유성국화축제");
+
+        assertThat(record).isPresent();
+        assertThat(record.get().lastYearVisitors()).isEqualByComparingTo(BigDecimal.valueOf(704156));
+        assertThat(record.get().budgetMillionWon()).isEqualByComparingTo(BigDecimal.valueOf(614));
+        assertThat(record.get().firstHeldYear()).isEqualTo(2009);
+    }
+
+    @Test
+    void 없는_축제명은_비어_있다() {
+        assertThat(repository.findByFestivalName("존재하지 않는 축제")).isEmpty();
+    }
+
+    @Test
+    void 파일이_없으면_조회만_비어_있고_예외는_없다() {
+        FestivalHistoryRepository missing = new FestivalHistoryRepository(
+                new DefaultResourceLoader(), "classpath:data/no-such-file.csv"
+        );
+        missing.load();
+
+        assertThat(missing.size()).isZero();
+    }
+}

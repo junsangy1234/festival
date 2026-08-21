@@ -13,9 +13,33 @@ diagnosis:
         priority: 2
         title: "경합 축제 대비 차별화 홍보"
         default-action: "50km 이내 경합 축제와 다른 테마와 메시지로 홍보한다."
-        related-risk-codes: [R-COMP-001]
+        related-risk-codes: [R-COMP-001, R-COMP-002]
         category: 홍보
         difficulty: 하
+        enabled: true
+      - recommendation-code: O-INF-003
+        priority: 2
+        title: "축제장 인접 관광지 안내인력 배치"
+        default-action: "축제장 1km 이내 급상승 관광지에 안내 인력 배치를 검토한다."
+        related-risk-codes: [R-VOL-005]
+        category: 인프라
+        difficulty: 하
+        enabled: true
+      - recommendation-code: O-SCH-001
+        priority: 6
+        title: "개최 시간대 조정 검토 (다음 회차)"
+        default-action: "인접 대규모 축제와 겹치는 시간대를 다음 회차에서 조정한다."
+        related-risk-codes: [R-COMP-003]
+        category: 일정
+        difficulty: 상
+        enabled: true
+      - recommendation-code: O-PRG-003
+        priority: 7
+        title: "역대급 규모 대비 안전·동선 재점검"
+        default-action: "역대급 방문 규모에 대비해 안전 관리와 관람 동선을 재점검한다."
+        related-risk-codes: [R-YEAR-003]
+        category: 프로그램
+        difficulty: 상
         enabled: true
       - recommendation-code: O-INF-002
         priority: 3

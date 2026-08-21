@@ -1,6 +1,5 @@
 package com.junsang.festival.domain.diagnosis.service;
 
-import com.junsang.festival.domain.diagnosis.DiagnosisStatus;
 import com.junsang.festival.domain.diagnosis.calculation.DiagnosisDataContext;
 import com.junsang.festival.domain.diagnosis.collection.DiagnosisDataCollector;
 import com.junsang.festival.domain.diagnosis.data.ExternalDataResult;
@@ -8,6 +7,7 @@ import com.junsang.festival.domain.diagnosis.data.ExternalDataStatus;
 import com.junsang.festival.domain.diagnosis.dto.request.DiagnosisRequest;
 import com.junsang.festival.domain.diagnosis.dto.response.DiagnosisDashboardResponse;
 import com.junsang.festival.domain.diagnosis.dto.response.DiagnosisResponse;
+import com.junsang.festival.domain.diagnosis.dto.response.ForecastReportResponse;
 import com.junsang.festival.domain.diagnosis.entity.Diagnosis;
 import com.junsang.festival.domain.diagnosis.repository.DiagnosisRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +24,7 @@ public class DiagnosisService {
     private final DiagnosisDataCollector diagnosisDataCollector;
     private final DiagnosisResultStore diagnosisResultStore;
     private final DiagnosisDashboardAssembler dashboardAssembler;
+    private final ForecastReportAssembler forecastReportAssembler;
 
     // 진단 생성과 데이터 수집
     public DiagnosisResponse createDiagnosis(DiagnosisRequest request) {
@@ -44,6 +45,15 @@ public class DiagnosisService {
         DiagnosisDataContext context = diagnosisResultStore.get(reportId)
                 .orElseGet(() -> collectAndStore(diagnosis));
         return dashboardAssembler.assemble(diagnosis, context);
+    }
+
+    // M3 예보 리포트 조립
+    public ForecastReportResponse getForecastReport(String reportId) {
+        Diagnosis diagnosis = findDiagnosis(reportId);
+        DiagnosisDataContext context = diagnosisResultStore.get(reportId)
+                .orElseGet(() -> collectAndStore(diagnosis));
+        DiagnosisDashboardResponse dashboard = dashboardAssembler.assemble(diagnosis, context);
+        return forecastReportAssembler.assemble(diagnosis, dashboard);
     }
 
     // 진단 조회

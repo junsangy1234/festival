@@ -23,7 +23,7 @@ public class ConcentrationAnalysisService {
     private static final BigDecimal RELAXED_DELTA_THRESHOLD = BigDecimal.valueOf(-5);
     private static final BigDecimal RELAXED_RATE_THRESHOLD = BigDecimal.valueOf(40);
 
-    // 30일 원본에서 개최기간 평균, 관광지별 상승폭과 여유 후보를 함께 만든다.
+    // 26일 예측 원본에서 개최기간 평균, 관광지별 상승폭과 여유 후보를 함께 만든다.
     public ConcentrationAnalysisResult analyze(
             List<TourConcentrationForecastItem> forecastItems,
             LocalDate startDate,
@@ -37,7 +37,7 @@ public class ConcentrationAnalysisService {
                         Collectors.toList()
                 ));
 
-        Map<String, BigDecimal> thirtyDayAverages = itemsByPlace.entrySet().stream()
+        Map<String, BigDecimal> selfAverages = itemsByPlace.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
                         entry -> average(entry.getValue().stream()
@@ -53,16 +53,16 @@ public class ConcentrationAnalysisService {
 
         return new ConcentrationAnalysisResult(
                 averageOrNull(festivalItems.stream().map(TourConcentrationForecastItem::concentrationRate).toList()),
-                dailyConcentrations(festivalItems, thirtyDayAverages),
-                volatilityPlaces(itemsByPlace, thirtyDayAverages, startDate, endDate),
-                relaxedCandidates(itemsByPlace, thirtyDayAverages, startDate, endDate)
+                dailyConcentrations(festivalItems, selfAverages),
+                volatilityPlaces(itemsByPlace, selfAverages, startDate, endDate),
+                relaxedCandidates(itemsByPlace, selfAverages, startDate, endDate)
         );
     }
 
     // View 01에 사용할 개최기간 날짜별 관광지 집중률을 만든다.
     private List<ConcentrationAnalysisResult.DailyConcentration> dailyConcentrations(
             List<TourConcentrationForecastItem> festivalItems,
-            Map<String, BigDecimal> thirtyDayAverages
+            Map<String, BigDecimal> selfAverages
     ) {
         return festivalItems.stream()
                 .collect(Collectors.groupingBy(
@@ -79,7 +79,7 @@ public class ConcentrationAnalysisService {
                                 .map(item -> new ConcentrationAnalysisResult.PlaceRate(
                                         item.placeName(),
                                         item.concentrationRate(),
-                                        subtract(item.concentrationRate(), thirtyDayAverages.get(item.placeName()))
+                                        subtract(item.concentrationRate(), selfAverages.get(item.placeName()))
                                 ))
                                 .toList()
                 ))
@@ -89,7 +89,7 @@ public class ConcentrationAnalysisService {
     // View 02에 사용할 관광지별 개최기간 최고 상승폭과 배지를 만든다.
     private List<ConcentrationAnalysisResult.VolatilityPlace> volatilityPlaces(
             Map<String, List<TourConcentrationForecastItem>> itemsByPlace,
-            Map<String, BigDecimal> thirtyDayAverages,
+            Map<String, BigDecimal> selfAverages,
             LocalDate startDate,
             LocalDate endDate
     ) {
@@ -98,10 +98,10 @@ public class ConcentrationAnalysisService {
                 .filter(item -> isFestivalDate(item.baseDate(), startDate, endDate))
                 .max(Comparator.comparing(TourConcentrationForecastItem::concentrationRate))
                 .ifPresent(peak -> {
-                    BigDecimal peakDelta = subtract(peak.concentrationRate(), thirtyDayAverages.get(placeName));
+                    BigDecimal peakDelta = subtract(peak.concentrationRate(), selfAverages.get(placeName));
                     results.add(new ConcentrationAnalysisResult.VolatilityPlace(
                             placeName,
-                            thirtyDayAverages.get(placeName),
+                            selfAverages.get(placeName),
                             peak.concentrationRate(),
                             peakDelta,
                             peak.baseDate(),
@@ -117,7 +117,7 @@ public class ConcentrationAnalysisService {
     // 여유 관광지 선별
     private List<ConcentrationAnalysisResult.RelaxedPlaceCandidate> relaxedCandidates(
             Map<String, List<TourConcentrationForecastItem>> itemsByPlace,
-            Map<String, BigDecimal> thirtyDayAverages,
+            Map<String, BigDecimal> selfAverages,
             LocalDate startDate,
             LocalDate endDate
     ) {
@@ -131,19 +131,19 @@ public class ConcentrationAnalysisService {
                 return;
             }
 
-            BigDecimal delta = subtract(festivalAverage, thirtyDayAverages.get(placeName));
+            BigDecimal delta = subtract(festivalAverage, selfAverages.get(placeName));
             if (delta.compareTo(RELAXED_DELTA_THRESHOLD) <= 0
                     && festivalAverage.compareTo(RELAXED_RATE_THRESHOLD) <= 0) {
                 results.add(new ConcentrationAnalysisResult.RelaxedPlaceCandidate(
                         placeName,
-                        thirtyDayAverages.get(placeName),
+                        selfAverages.get(placeName),
                         festivalAverage,
                         delta
                 ));
             }
         });
         return results.stream()
-                .sorted(Comparator.comparing(ConcentrationAnalysisResult.RelaxedPlaceCandidate::deltaFromThirtyDayAverage)
+                .sorted(Comparator.comparing(ConcentrationAnalysisResult.RelaxedPlaceCandidate::deltaFromSelfAverage)
                         .thenComparing(ConcentrationAnalysisResult.RelaxedPlaceCandidate::placeName))
                 .toList();
     }

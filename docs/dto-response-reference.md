@@ -174,28 +174,33 @@ Docker 환경에서는 `FESTIVAL_CACHE_ROOT=/app/cache`로 지정하며, Docker 
 | --- | --- | --- |
 | `POST /api/v1/reports` | 진단 요청 생성 | 입력 저장 후 수집·정제·정책 매칭까지 실행하고 최종 처리 상태 반환 |
 | `GET /api/v1/reports/{reportId}` | 입력값·처리 상태 조회 | 구현 완료 |
-| `GET /api/v1/reports/{reportId}/dashboard` | M2 대시보드 결과 조회 | 실제 데이터, 데이터별 상태, 리스크·운영 제안 반환 |
+| `GET /api/v1/reports/{reportId}/dashboard` | M2 대시보드 결과 조회 | 실제 데이터, 데이터별 상태, 지도 표현, 리스크·운영 제안 반환 |
+| `GET /api/v1/reports/{reportId}/forecast-report` | M3 리포트(6개 섹션) 조회 | 히어로·A4 요약본·데이터 요약·리스크·운영 제안·근거 반환 |
 
 개발 중에는 `GET /diagnosis-test.html`로 간단한 임시 테스트 화면을 열 수 있다. 이 화면은 `POST /api/v1/reports` 후 받은 `reportId`로 대시보드 API를 즉시 호출해 원본 JSON 응답을 표시한다.
 
-M2 대시보드 응답은 최신 기획에 맞춰 아래 5개 영역으로 구성한다. 각 데이터 프로필은 합산 점수나 등급이 아닌 원본 값이다.
+MVP 데이터 스택은 API #1·#2·#6·#7·#8 + CSV #9다. API #3·#4·#5는 완전 폐기해 호출하지 않는다.
+M2 대시보드 응답은 아래 영역으로 구성한다. 종합 지수·순위·등급은 만들지 않고 각 축의 원본 값만 반환한다.
 
-- `profile`: 시기적합도, 여유 관광지 수, 연계 풍부도, 카테고리 다양성
+- `profile`: 수평 막대 4축(시기적합도 0~100, 여유 관광지 수 0~10, 연계 풍부도 1~50 순위, 카테고리 다양성)과 필수 각주 3줄(`notes`)
+- `festivalLocation`: 축제장 좌표와 출처(`KOR_SERVICE`/`USER_INPUT`/`SIGNGU_CENTER`/`UNAVAILABLE`)·정밀도·안내 문구
+- `map`: 지도 표현용 축제장 마커, 관광지 마커(API #6 좌표 × API #1 배지), 인근 축제 마커, 최인접 반경 1km
 - `concentration`: 개최기간 관광 흐름(View 01)
 - `volatility`: 관광지 변동 상황(View 02)
 - `distribution`: 여유 관광지(View 03)
 - `regionalVisitors`: 시군구 날짜별 현지인·외지인·외국인·전체 방문자와 기간 전후 평균
 - `relatedPlaces`: 기준 관광지별 연관 관광지 순위와 카테고리
-- `competing`: 동기간 경합 축제(View 04)
+- `competing`: 동기간 인근 축제(View 04). API #8 정보에 CSV #9 실측(방문객수·예산)과 연계 태그를 조인
+- `festivalHistory`: CSV #9 재개최 실적(작년 방문객수·예산·최초 개최연도)
 - `dataStatuses`: 외부 데이터별 `AVAILABLE`, `NO_DATA`, `OUT_OF_FORECAST_RANGE`, `FAILED` 상태와 사유·기준 시점
 - `risks`, `recommendations`: YAML 정책에 매칭된 리스크와 기본 운영 제안
 
 `ConcentrationAnalysisService`는 API #1 원본을 아래와 같이 정제한다.
 
 - 개최기간 전체 평균 집중률
-- 날짜별 관광지 집중률과 해당 관광지의 30일 평균 대비 변화
+- 날짜별 관광지 집중률과 해당 관광지의 자기평균(26일 예측 평균) 대비 변화
 - 관광지별 개최기간 최고 상승폭·최고 상승일·`STABLE`/`WARNING`/`SURGING` 배지
-- 개최기간 평균이 30일 평균보다 `-5%p` 이하이고 집중률 `40` 이하인 여유 관광지 후보
+- 개최기간 평균이 자기평균보다 `-5%p` 이하이고 집중률 `40` 이하인 여유 관광지 후보
 
 여유 후보는 집중률 조건으로 만들고, API #2의 연관 순위·카테고리는 `relatedPlaces`에서 기준 관광지별 목록으로 별도 반환한다. 프론트는 관광지명이 일치할 때 두 결과를 함께 표시할 수 있다.
 
@@ -206,16 +211,26 @@ M2 대시보드 응답은 최신 기획에 맞춰 아래 5개 영역으로 구�
   "reportId": "uuid",
   "status": "PARTIAL",
   "diagnosis": {},
-  "targetLocation": {
-    "latitude": 37.3682,
-    "longitude": 127.8166,
-    "source": "USER_INPUT"
+  "festivalLocation": {
+    "latitude": 36.3607306,
+    "longitude": 127.3577063,
+    "source": "USER_INPUT",
+    "precise": true,
+    "address": "대전광역시 유성구 어은로 27",
+    "notice": null
+  },
+  "map": {
+    "site": {},
+    "nearestRadiusKm": 1.0,
+    "places": [],
+    "nearbyFestivals": [],
+    "notice": null
   },
   "dataStatuses": [
     {
       "source": "concentration",
       "status": "OUT_OF_FORECAST_RANGE",
-      "reason": "관광지 집중률은 조회일 기준 향후 30일만 제공합니다.",
+      "reason": "관광지 집중률은 조회일 기준 향후 26일(D+0~D+25)만 제공합니다.",
       "referencePeriod": "2026-10-01~2026-10-03",
       "retrievedAt": "2026-08-14T08:00:00Z"
     }
@@ -230,6 +245,7 @@ M2 대시보드 응답은 최신 기획에 맞춰 아래 5개 영역으로 구�
     "festivals": [],
     "excludedMissingCoordinatesCount": 0
   },
+  "festivalHistory": null,
   "risks": [],
   "recommendations": []
 }
@@ -254,7 +270,7 @@ M2 대시보드 응답은 최신 기획에 맞춰 아래 5개 영역으로 구�
 | --- | ---: | --- |
 | `concentration.dailyConcentrations[].places` | 변동성 상위 10개 관광지 | `totalPlaceCount` |
 | `volatility.places` | 10개 | `totalCount` |
-| `distribution.places` | 10개 | `totalCount` |
+| `distribution.places` | 6개 | `totalCount` |
 | `relatedPlaces.basePlaces` | 기준 관광지 10개 | `totalBasePlaceCount` |
 | `relatedPlaces.basePlaces[].relatedPlaces` | 기준 관광지별 10개 | `totalRelatedPlaceCount` |
 | `competing.festivals` | 10개 | `totalCount`, `displayedCount` |
@@ -284,7 +300,36 @@ M2 대시보드 응답은 최신 기획에 맞춰 아래 5개 영역으로 구�
 - 리스크 규칙은 `riskCode`, `severity`, `priority`, `metricKey`, 제한된 비교 연산자, `threshold`, 근거 필드, 연결 제안 코드, `enabled`를 가진다.
 - 운영 제안은 `recommendationCode`, `priority`, 제목, 기본 행동 문구, 연결 리스크, `enabled`를 가진다.
 - 알 수 없는 지표, 데이터가 없는 지표, `enabled: false` 규칙은 안전하게 건너뛴다.
-- 운영 제안 응답에는 이후 Claude에 전달할 수 있도록 기본 행동 문구와 근거 수치를 포함하지만 Claude 호출은 하지 않는다.
+- 운영 제안 응답에는 이후 Claude에 전달할 수 있도록 기본 행동 문구와 근거 수치를 포함하지만 Java 백엔드는 Claude를 호출하지 않는다.
+- 위치가 필요한 규칙(R-VOL-005·O-INF-003)은 `festivalLocation.precise`가 `false`면 지표 자체를 만들지 않아 자동으로 건너뛴다.
+
+### M3 리포트 구조
+
+`GET /api/v1/reports/{reportId}/forecast-report`는 세로 스크롤 6개 섹션을 그대로 돌려준다.
+
+| 섹션 | 필드 | 내용 |
+| --- | --- | --- |
+| §1 히어로 | `hero` | 축제명·개최기간·`diagnosisTiming`(D-X)·`forecastDataActive`·시점별 활용 데이터·`briefing`(AI 방향 C가 채움) |
+| §2 A4 요약본 | `summarySheet` | 핵심 팩트, 리스크 3건, 운영 제안 3건, 데이터 출처·한계 문구 |
+| §3 데이터 요약 | `dataSummary` | 수평 막대 4축과 4개 데이터 뷰 |
+| §4 리스크 | `risks` | 규칙 엔진 매칭 결과 |
+| §5 운영 조정 제안 | `operationProposal` | 실무자 판단 우선 문구와 제안 체크리스트 |
+| §6 근거 | `evidence` | 데이터별 상태·기준 시점 문구·축제장 위치 안내·데이터 한계 문구 |
+
+종합 점수·등급·5각 축 분해는 반환하지 않는다.
+
+## AI 서비스 (ai-service)
+
+Part 6의 AI 4방향은 별도 FastAPI 서비스가 담당하고, Anthropic Claude Sonnet 4.5를 사용한다.
+
+| API | 방향 | 폴백 |
+| --- | --- | --- |
+| `POST /api/v1/reports/{reportId}/ai-report` | B·A·C·D 병렬 실행 | 방향별 폴백 |
+| `POST /api/v1/reports/{reportId}/recommendations/expand` | D 단독 | 규칙 원문 |
+
+- 방향 B(관광지 방문 인원 추정)의 `confidence`는 AI가 아니라 입력 데이터 충족 개수로 결정하고, `low`면 추정치를 표시하지 않는다.
+- 방향 A(리스크 심각도 판정)는 규칙 매칭 원문 로그(`ruleMatchLog`)를 함께 반환해 재현성을 유지한다.
+- 호출 실패 시 방향 D는 규칙 원문, 방향 A는 규칙 정의 등급, 방향 B·C는 미표시로 폴백한다.
 
 ## FestivalSearchRequest / FestivalListResponse
 

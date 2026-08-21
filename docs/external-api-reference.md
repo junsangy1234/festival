@@ -18,22 +18,27 @@
 |---:|---|---|---|
 | 1 | 관광지 집중률 방문자 추이 예측 | 핵심 | 개최기간 추이, 변동성, 여유 관광지 |
 | 2 | 관광지별 연관 관광지 | 핵심 | 연관 관광지·카테고리·분산 후보 |
-| 3 | 지역별 문화 자원 수요 | 확장 | 지역 수요 보조 지표 |
-| 4 | 지역별 관광 서비스 수요 | 확장 | 지역 수요 보조 지표 |
-| 5 | 지역별 관광 다양성 | 확장 | 관광객·소비·국제 다양성 지표 |
-| 6 | 기초 지자체 중심 관광지 | 확장 | 지역 중심 관광지 참고 |
+| 3 | 지역별 문화 자원 수요 | 폐기 | 사용 안 함. 모든 파라미터 조합에서 `totalCount=0` |
+| 4 | 지역별 관광 서비스 수요 | 폐기 | 사용 안 함. 동일 문제 |
+| 5 | 지역별 관광 다양성 | 폐기 | 사용 안 함. 동일 문제 |
+| 6 | 기초 지자체 중심 관광지 | 핵심 | 관광지 좌표(지도 표현·R-VOL-005), hubRank, 뷰 03 강화 |
 | 7 | 지역별 방문자 수 | 핵심 | 축제 개최 시·군·구 방문 수요 추이 |
-| 8 | 국문 관광정보 서비스 | 핵심 | 기존 축제 선택, 경합 축제 조회 |
+| 8 | 국문 관광정보 서비스 | 핵심 | 기존 축제 선택, 축제장 좌표 자동 로드, 동기간 인근 축제 조회 |
+| 9 | 문체부 지역축제 개최 계획 현황 (CSV) | 핵심 | 재개최 실적(방문객수·예산), 뷰 04 조인, R-YEAR·R-COMP-003 |
+
+API #3·#4·#5는 인증·파라미터가 유효해도 모든 조합에서 데이터가 없어 완전 폐기했다. `TourApiOperation`에서도 제거했으므로 호출 경로가 없다.
 
 ## 현재 서버 연동 상태
 
 | 번호 | 구현 | 페이지네이션 | 원본 캐시 | 비고 |
 |---:|---|---|---|---|
-| 1 | `TourConcentrationClient` | `totalCount`까지 반복 | `concentration-forecast` | 시작일이 조회일 기준 향후 30일 밖이면 `OUT_OF_FORECAST_RANGE` |
+| 1 | `TourConcentrationClient` | `totalCount`까지 반복 | `concentration-forecast` | 반환 26일(D+0~D+25). 시작일이 그 밖이면 `OUT_OF_FORECAST_RANGE` |
 | 2 | `TourRelatedPlaceClient` | `totalCount`까지 반복 | `related-tourist-places` | `baseYm`은 `festival.external-data.related-base-year-month` 설정 사용 |
-| 3~6 | API 명세만 보관 | 미연결 | 미연결 | 현재 M2 핵심 흐름에서 사용하지 않음 |
+| 3~5 | 폐기 | — | — | 호출 경로 제거 |
+| 6 | `TourHubAttractionClient` | `totalCount`까지 반복 | `local-hub-attractions` | `mapX`/`mapY` 좌표와 `hubRank` 확보 |
 | 7 | `TourRegionalVisitorClient` | `totalCount`까지 반복 | `local-region-visitors` | 관광지별 값이 아니라 시군구 전체 방문자 값 |
-| 8 | `TourFestivalClient` | 경합 후보 검색 시 `totalCount`까지 반복 | `festival-search` | 기간 후보 조회 후 Haversine 50km 필터 적용 |
+| 8 | `TourFestivalClient` | 인근 축제 후보 검색 시 `totalCount`까지 반복 | `festival-search` | 기간 후보 조회 후 Haversine 50km 필터 적용 |
+| 9 | `FestivalHistoryRepository` | — | 메모리 로드 | `festival.external-data.festival-history-csv` 경로. 파일이 없으면 조인만 비활성 |
 
 캐시 키는 API 종류와 실제 요청 조건 전체를 사용한다. 인증키는 캐시 키·파일·로그에 포함하지 않는다. API 실패, 정상 응답이지만 데이터 없음, 집중률 예측 범위 밖은 각각 `FAILED`, `NO_DATA`, `OUT_OF_FORECAST_RANGE`로 구분한다.
 
@@ -159,9 +164,9 @@ GET https://apis.data.go.kr/B551011/TarRlteTarService1/areaBasedList1
 
 ## 3. 지역별 문화 자원 수요
 
-**상태: 확장 · 명세 확인 완료**
+**상태: 폐기 · 데이터 부재 확인. 명세만 보관한다.**
 
-지역의 문화 자원에 대한 수요 지수를 제공한다. 현재 M2 핵심 카드에는 넣지 않고, 지역 수요 판단을 확장할 때 사용한다.
+지역의 문화 자원에 대한 수요 지수를 제공한다. 실호출 결과 모든 파라미터 조합에서 데이터가 없어 서비스에서 제외했다.
 
 ```http
 GET https://apis.data.go.kr/B551011/AreaTarResDemService/areaCulResDemList
@@ -214,7 +219,7 @@ GET https://apis.data.go.kr/B551011/AreaTarResDemService/areaCulResDemList
 
 ## 4. 지역별 관광 서비스 수요
 
-**상태: 확장 · 명세 확인 완료**
+**상태: 폐기 · 데이터 부재 확인. 명세만 보관한다.**
 
 지역의 관광 서비스 수요를 제공한다. SNS 언급, 관광 소비, 내비게이션 목적지 검색 같은 하위 지표를 바탕으로 한다.
 
@@ -269,7 +274,7 @@ GET https://apis.data.go.kr/B551011/AreaTarResDemService/areaTarSvcDemList
 
 ## 5. 지역별 관광 다양성
 
-**상태: 확장 · 명세 확인 완료**
+**상태: 폐기 · 데이터 부재 확인. 명세만 보관한다.**
 
 관광객 다양성, 관광 소비 다양성, 국제적 다양성 지표를 제공한다. 지역 관광 수요의 구성 특성을 설명하는 보조 데이터다.
 
@@ -326,7 +331,7 @@ GET https://apis.data.go.kr/B551011/AreaTarDivService/areaTouDivList
 
 ## 6. 기초 지자체 중심 관광지 정보
 
-**상태: 확장 · 명세 확인 완료**
+**상태: 핵심 · `TourHubAttractionClient` 연동 완료**
 
 티맵 내비게이션 데이터를 기반으로, 해당 시·군·구에서 다른 관광지와 연계 방문이 많은 중심 관광지 최대 100위를 제공한다. 실제 방문자 수가 아닌 연결 중심성 데이터다.
 
@@ -541,4 +546,6 @@ GET https://apis.data.go.kr/B551011/KorService2/detailImage2
 2. #7 `locgoRegnVisitrDDList`의 전체 페이지 조회와 시군구 방문 수요 정제를 완료했다.
 3. #2 `areaBasedList1`의 전체 페이지 조회와 기준 관광지별 그룹·순위 정렬을 완료했다.
 4. #8 `searchFestival2` 후보 전체 페이지 조회와 기간 겹침·Haversine 50km 필터를 완료했다.
-5. #3~#6은 현재 M2 응답에서 사용하지 않으며 정책·화면 확장 시 연결한다.
+5. #6 `LocgoHubTarService1`의 전체 페이지 조회로 관광지 좌표·`hubRank`를 확보해 지도 표현, 축제장 최인접 판정(R-VOL-005), 뷰 03 카드 강화에 사용한다.
+6. CSV #9를 축제명으로 조인해 재개최 실적 카드와 뷰 04 방문객수·예산 병기, R-YEAR-002·003·R-COMP-003 판정에 사용한다.
+7. #3~#5는 데이터 부재로 완전 폐기했고 재도입 계획이 없다.

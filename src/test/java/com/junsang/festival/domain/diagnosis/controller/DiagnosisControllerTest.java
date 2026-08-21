@@ -44,7 +44,7 @@ class DiagnosisControllerTest {
                         .content(request))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.reportId").isNotEmpty())
-                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.status").value("PARTIAL"))
                 .andExpect(jsonPath("$.festivalType").value("문화예술"))
                 .andExpect(jsonPath("$.scale").value("중규모"))
                 .andExpect(jsonPath("$.recurrenceType").value("신규"));
@@ -109,10 +109,12 @@ class DiagnosisControllerTest {
         mockMvc.perform(get("/api/v1/reports/{reportId}/dashboard", reportId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reportId").value(reportId))
-                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.status").value("PARTIAL"))
                 .andExpect(jsonPath("$.profile").exists())
                 .andExpect(jsonPath("$.concentration.dailyConcentrations").isArray())
-                .andExpect(jsonPath("$.dataStatuses.length()").value(4))
+                .andExpect(jsonPath("$.dataStatuses.length()").value(6))
+                .andExpect(jsonPath("$.profile.notes.length()").value(3))
+                .andExpect(jsonPath("$.map").exists())
                 .andExpect(jsonPath("$.risks").isArray())
                 .andExpect(jsonPath("$.recommendations").isArray());
     }
@@ -149,5 +151,50 @@ class DiagnosisControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dataStatuses[?(@.source == 'concentration')].status")
                         .value("OUT_OF_FORECAST_RANGE"));
+    }
+
+    @Test
+    void returnsForecastReportStructureForM3() throws Exception {
+        String request = """
+                {
+                  "festivalName": "원주 여름 음악축제",
+                  "areaCode": "51",
+                  "signguCode": "51130",
+                  "startDate": "2026-08-20",
+                  "endDate": "2026-08-23",
+                  "festivalType": "CULTURE_ART",
+                  "scale": "MEDIUM",
+                  "recurrenceType": "NEW",
+                  "festivalAddress": "강원특별자치도 원주시 지정면 소금산로 12",
+                  "latitude": 37.3682,
+                  "longitude": 127.8166
+                }
+                """;
+
+        String response = mockMvc.perform(post("/api/v1/reports")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String reportId = response.replaceFirst(".*\\\"reportId\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mockMvc.perform(get("/api/v1/reports/{reportId}/forecast-report", reportId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reportId").value(reportId))
+                .andExpect(jsonPath("$.hero.festivalName").value("원주 여름 음악축제"))
+                .andExpect(jsonPath("$.hero.diagnosisTiming").isNotEmpty())
+                .andExpect(jsonPath("$.hero.availableDataSources").isArray())
+                .andExpect(jsonPath("$.summarySheet.title").value("축제날씨 진단 요약"))
+                .andExpect(jsonPath("$.summarySheet.topRisks").isArray())
+                .andExpect(jsonPath("$.summarySheet.topRecommendations").isArray())
+                .andExpect(jsonPath("$.dataSummary.profile.notes.length()").value(3))
+                .andExpect(jsonPath("$.operationProposal.guidanceNote").isNotEmpty())
+                .andExpect(jsonPath("$.operationProposal.items").isArray())
+                .andExpect(jsonPath("$.evidence.referencePeriodNotes").isArray())
+                .andExpect(jsonPath("$.evidence.limitationNote").isNotEmpty())
+                .andExpect(jsonPath("$.evidence.dataStatuses").isArray());
     }
 }

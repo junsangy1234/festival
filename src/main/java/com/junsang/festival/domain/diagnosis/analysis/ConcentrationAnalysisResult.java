@@ -19,13 +19,13 @@ public record ConcentrationAnalysisResult(
     public record PlaceRate(
             String placeName,
             BigDecimal concentrationRate,
-            BigDecimal deltaFromThirtyDayAverage
+            BigDecimal deltaFromSelfAverage
     ) {
     }
 
     public record VolatilityPlace(
             String placeName,
-            BigDecimal thirtyDayAverage,
+            BigDecimal selfAverage,
             BigDecimal peakRate,
             BigDecimal peakDelta,
             LocalDate peakDate,
@@ -35,9 +35,9 @@ public record ConcentrationAnalysisResult(
 
     public record RelaxedPlaceCandidate(
             String placeName,
-            BigDecimal thirtyDayAverage,
+            BigDecimal selfAverage,
             BigDecimal festivalPeriodAverage,
-            BigDecimal deltaFromThirtyDayAverage
+            BigDecimal deltaFromSelfAverage
     ) {
     }
 }

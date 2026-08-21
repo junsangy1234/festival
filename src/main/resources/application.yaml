@@ -18,15 +18,18 @@ festival:
     root-directory: ${FESTIVAL_CACHE_ROOT:./cache}
     concentration-forecast-ttl: PT24H
     related-places-ttl: P30D
+    hub-attractions-ttl: P30D
     regional-visitors-ttl: PT24H
     festival-search-ttl: PT1H
   external-data:
     related-base-year-month: ${RELATED_TOURISM_BASE_YM:202503}
     visitor-reference-years-back: ${VISITOR_REFERENCE_YEARS_BACK:1}
+    # CSV #9 문체부 지역축제 개최 계획 현황. 파일이 없으면 재개최 실적 조인만 비활성된다.
+    festival-history-csv: ${FESTIVAL_HISTORY_CSV:classpath:data/festival-history.csv}
   dashboard:
     max-concentration-places: 10
     max-volatility-places: 10
-    max-distribution-places: 10
+    max-distribution-places: 6
     max-related-base-places: 10
     max-related-places-per-base: 10
     max-competing-festivals: 10

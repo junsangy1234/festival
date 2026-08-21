@@ -9,12 +9,10 @@ public enum TourApiOperation {
     RELATED_TOURIST_PLACES("related-tourist-places", "/B551011/TarRlteTarService1/areaBasedList1"),
     METRO_REGION_VISITORS("metro-region-visitors", "/B551011/DataLabService/metcoRegnVisitrDDList"),
     LOCAL_REGION_VISITORS("local-region-visitors", "/B551011/DataLabService/locgoRegnVisitrDDList"),
+    // API #6 기초지자체중심 관광지정보. v7.3에서 MVP 편입(뷰 03 강화·R-VOL-005 좌표 정밀화).
     LOCAL_HUB_ATTRACTIONS("local-hub-attractions", "/B551011/LocgoHubTarService1/areaBasedList1"),
-    TOURIST_DIVERSITY("tourist-diversity", "/B551011/AreaTarDivService/areaTouDivList"),
-    TOURISM_EXPENSE_DIVERSITY("tourism-expense-diversity", "/B551011/AreaTarDivService/areaExpDivList"),
-    INTERNATIONAL_DIVERSITY("international-diversity", "/B551011/AreaTarDivService/areaIntlDivList"),
-    TOURISM_SERVICE_DEMAND("tourism-service-demand", "/B551011/AreaTarResDemService/areaTarSvcDemList"),
-    CULTURAL_RESOURCE_DEMAND("cultural-resource-demand", "/B551011/AreaTarResDemService/areaCulResDemList"),
+    // API #3·#4·#5(지역별 관광자원 수요·관광수요 강도·관광다양성)는 v7.4에서 완전 폐기했다.
+    // 인증·파라미터가 유효해도 모든 조합에서 totalCount=0을 반환해 서비스에서 제외한다.
     AREA_BASED_CONTENTS("area-based-contents", "/B551011/KorService2/areaBasedList2"),
     LOCATION_BASED_CONTENTS("location-based-contents", "/B551011/KorService2/locationBasedList2"),
     KEYWORD_SEARCH("keyword-search", "/B551011/KorService2/searchKeyword2"),

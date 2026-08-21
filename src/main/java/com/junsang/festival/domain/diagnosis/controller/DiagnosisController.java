@@ -3,6 +3,7 @@ package com.junsang.festival.domain.diagnosis.controller;
 import com.junsang.festival.domain.diagnosis.dto.request.DiagnosisRequest;
 import com.junsang.festival.domain.diagnosis.dto.response.DiagnosisDashboardResponse;
 import com.junsang.festival.domain.diagnosis.dto.response.DiagnosisResponse;
+import com.junsang.festival.domain.diagnosis.dto.response.ForecastReportResponse;
 import com.junsang.festival.domain.diagnosis.service.DiagnosisService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,12 @@ public class DiagnosisController {
     @GetMapping("/{reportId}/dashboard")
     public DiagnosisDashboardResponse getDashboard(@PathVariable String reportId) {
         return diagnosisService.getDashboard(reportId);
+    }
+
+    // M3 예보 리포트 조회
+    @GetMapping("/{reportId}/forecast-report")
+    public ForecastReportResponse getForecastReport(@PathVariable String reportId) {
+        return diagnosisService.getForecastReport(reportId);
     }
 
 }

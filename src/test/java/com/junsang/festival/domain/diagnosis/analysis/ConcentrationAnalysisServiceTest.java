@@ -41,7 +41,7 @@ class ConcentrationAnalysisServiceTest {
         });
         assertThat(result.relaxedPlaceCandidates()).singleElement().satisfies(place -> {
             assertThat(place.placeName()).isEqualTo("여유산");
-            assertThat(place.deltaFromThirtyDayAverage()).hasToString("-5.00");
+            assertThat(place.deltaFromSelfAverage()).hasToString("-5.00");
         });
     }
 

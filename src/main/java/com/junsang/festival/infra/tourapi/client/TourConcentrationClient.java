@@ -38,7 +38,7 @@ public class TourConcentrationClient {
         this.concentrationForecastTtl = concentrationForecastTtl;
     }
 
-    // 시군구 전체 관광지의 향후 30일 집중률 예측 원본 데이터를 조회한다.
+    // 시군구 전체 관광지의 향후 26일(D+0~D+25) 집중률 예측 원본 데이터를 조회한다.
     public CachedExternalData getForecast(String areaCode, String signguCode) {
         return getForecastPage(areaCode, signguCode, 1);
     }

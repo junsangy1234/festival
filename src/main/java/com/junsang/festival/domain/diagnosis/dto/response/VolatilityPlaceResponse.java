@@ -4,7 +4,7 @@ public record VolatilityPlaceResponse(
         String placeName,
         Double increasePoint,
         String level,
-        Double thirtyDayAverage,
+        Double selfAverage,
         Double peakRate,
         java.time.LocalDate peakDate
 ) {

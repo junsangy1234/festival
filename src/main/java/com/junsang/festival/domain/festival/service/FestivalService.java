@@ -8,11 +8,9 @@ import com.junsang.festival.domain.festival.dto.response.FestivalSummaryResponse
 import com.junsang.festival.global.exception.TourApiException;
 import com.junsang.festival.infra.tourapi.client.TourFestivalClient;
 import com.junsang.festival.infra.tourapi.dto.festival.TourApiEnvelope;
-import com.junsang.festival.infra.tourapi.dto.festival.TourFestivalCommonApiResponse;
 import com.junsang.festival.infra.tourapi.dto.festival.TourFestivalCommonItem;
 import com.junsang.festival.infra.tourapi.dto.festival.TourFestivalDetailInfoItem;
 import com.junsang.festival.infra.tourapi.dto.festival.TourFestivalImageItem;
-import com.junsang.festival.infra.tourapi.dto.festival.TourFestivalIntroApiResponse;
 import com.junsang.festival.infra.tourapi.dto.festival.TourFestivalIntroItem;
 import com.junsang.festival.infra.tourapi.dto.festival.TourFestivalSearchApiResponse;
 import com.junsang.festival.infra.tourapi.dto.festival.TourFestivalSearchItem;
