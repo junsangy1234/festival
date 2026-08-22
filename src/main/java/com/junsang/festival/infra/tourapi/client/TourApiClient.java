@@ -62,17 +62,46 @@ public class TourApiClient {
         Map<String, String> queryParameters = buildQueryParameters(requestParameters);
 
         try {
-            return restClient.get()
+            String responseBody = restClient.get()
                     .uri(buildUri(operation, queryParameters))
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (request, response) -> {
-                        throw new TourApiException("관광공사 API 호출에 실패했습니다. HTTP " + response.getStatusCode().value());
+                        String body = new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                        throw new TourApiException("관광공사 API 호출에 실패했습니다. HTTP "
+                                + response.getStatusCode().value() + gatewayMessage(body));
                     })
                     .body(String.class);
+            // 게이트웨이 인증 오류는 HTTP 200으로도 내려오므로 본문 형태로 한 번 더 확인한다.
+            String gatewayMessage = gatewayMessage(responseBody);
+            if (!gatewayMessage.isEmpty()) {
+                throw new TourApiException("관광공사 API 인증에 실패했습니다." + gatewayMessage);
+            }
+            return responseBody;
         } catch (RestClientResponseException exception) {
-            throw new TourApiException("관광공사 API 호출에 실패했습니다. HTTP " + exception.getStatusCode().value(), exception);
+            throw new TourApiException("관광공사 API 호출에 실패했습니다. HTTP "
+                    + exception.getStatusCode().value() + gatewayMessage(exception.getResponseBodyAsString()), exception);
         } catch (TourApiException exception) {
             throw exception;
+        }
+    }
+
+    // 공공데이터포털 게이트웨이가 돌려주는 인증 오류(OpenAPI_ServiceResponse)를 사람이 읽을 문구로 바꾼다.
+    private String gatewayMessage(String responseBody) {
+        if (responseBody == null || !responseBody.contains("cmmMsgHeader")) {
+            return "";
+        }
+        try {
+            JsonNode header = objectMapper.readTree(responseBody)
+                    .path("OpenAPI_ServiceResponse").path("cmmMsgHeader");
+            String errorCode = header.path("errMsg").asText();
+            String authMessage = header.path("returnAuthMsg").asText();
+            String reasonCode = header.path("returnReasonCode").asText();
+            String hint = "30".equals(reasonCode) || "SERVICE_KEY_IS_NOT_REGISTERED_ERROR".equals(errorCode)
+                    ? " (이 서비스에 대한 활용신청이 승인되지 않았습니다. 공공데이터포털에서 해당 API 활용신청 상태를 확인하세요.)"
+                    : "";
+            return " · " + authMessage + " [" + errorCode + "]" + hint;
+        } catch (Exception exception) {
+            return "";
         }
     }
 

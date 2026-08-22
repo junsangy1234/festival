@@ -1,25 +1,73 @@
 # 축제날씨 개발·Docker 명령어 모음
 # 사용법: make <명령어>
+#
+# Windows에서는 GNU make가 cmd.exe로 레시피를 실행하므로
+# 셸 문법(if [ ... ], set -a 등)을 쓰지 않고 어느 셸에서나 같은 명령만 쓴다.
+# TOUR_API_KEY 같은 값은 application.yaml이 루트 .env를 직접 읽는다.
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init-env run run-ai test build up rebuild down restart ps logs logs-app logs-db clean reset db compose-config
+ifeq ($(OS),Windows_NT)
+# Git Bash에서 실행해도 레시피가 항상 같은 셸에서 돌도록 cmd.exe로 고정한다.
+SHELL := cmd.exe
+.SHELLFLAGS := /c
+GRADLE := .\gradlew.bat
+else
+GRADLE := ./gradlew
+endif
+
+PORT ?= 8080
+AI_PORT ?= 8000
+
+.PHONY: help init-env run run-ai stop console test test-ai build up rebuild down restart ps logs logs-app logs-db clean reset db compose-config
 
 help: ## 사용할 수 있는 명령어 표시
-	@awk 'BEGIN {FS = ":.*##"}; /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo make init-env  - .env.example 복사해 .env 생성
+	@echo make run       - H2 local 프로필로 앱 실행, 포트 8080
+	@echo make run-ai    - ai-service 실행, 포트 $(AI_PORT)
+	@echo make stop      - 포트 $(PORT) 점유 프로세스 종료
+	@echo make console   - 테스트 콘솔 diagnosis-test.html 열기
+	@echo make test      - Java 테스트
+	@echo make test-ai   - ai-service 테스트
+	@echo make up        - Docker 전체 실행 / make down  - 종료
+	@echo make logs      - 로그 스트리밍    / make ps    - 상태 확인
+	@echo make db        - PostgreSQL 콘솔  / make reset - DB 초기화 후 재실행
 
+ifeq ($(OS),Windows_NT)
+init-env: ## .env.example을 복사해 .env 생성 (기존 .env는 유지)
+	@if not exist .env copy .env.example .env
+	@echo .env 파일을 확인하고 TOUR_API_KEY를 설정하세요.
+
+console: ## 테스트 콘솔 열기
+	@start http://localhost:8080/diagnosis-test.html
+
+stop: ## 8080 포트를 잡고 있는 프로세스 종료
+	@powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort $(PORT) -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $$_ -Force }; exit 0"
+	@echo 포트 $(PORT) 정리 완료
+else
 init-env: ## .env.example을 복사해 .env 생성 (기존 .env는 유지)
 	@test -f .env || cp .env.example .env
 	@echo ".env 파일을 확인하고 TOUR_API_KEY를 설정하세요."
 
+console: ## 테스트 콘솔 열기
+	@open http://localhost:8080/diagnosis-test.html || xdg-open http://localhost:8080/diagnosis-test.html
+
+stop: ## 8080 포트를 잡고 있는 프로세스 종료
+	-@lsof -ti tcp:$(PORT) | xargs -r kill -9
+	@echo "포트 $(PORT) 정리 완료"
+endif
+
 run: ## H2를 사용하는 local 프로필로 애플리케이션 실행
-	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; ./gradlew bootRun --args='--spring.profiles.active=local'
+	$(GRADLE) bootRun --args="--spring.profiles.active=local"
 
-run-ai: ## 루트 .env를 읽어 ai-service를 로컬 실행 (Part 6)
-	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; cd ai-service && python -m uvicorn app.main:app --port $${AI_SERVICE_PORT:-8000}
+run-ai: ## ai-service 실행 (Part 6)
+	cd ai-service && python -m uvicorn app.main:app --port $(AI_PORT) --reload
 
-test: ## 전체 테스트 실행
-	./gradlew test
+test: ## Java 전체 테스트 실행
+	$(GRADLE) test
+
+test-ai: ## ai-service 테스트 실행
+	cd ai-service && python -m pytest -q
 
 build: ## Docker 앱 이미지 빌드
 	docker compose build app

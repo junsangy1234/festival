@@ -318,6 +318,13 @@ M2 대시보드 응답은 아래 영역으로 구성한다. 종합 지수·순�
 
 종합 점수·등급·5각 축 분해는 반환하지 않는다.
 
+## 클라이언트 설정
+
+`GET /api/v1/client-config` → `{"googleMapsApiKey": "..."}`
+
+테스트 콘솔이 Google Maps JS API를 동적으로 불러올 때 쓴다. 값은 `GOOGLE_MAPS_API_KEY` 환경변수에서 온다.
+브라우저 키는 공개되는 값이므로 Google Cloud 콘솔에서 HTTP 리퍼러 제한을 걸어야 한다. 값이 비어 있으면 지도 자리에 안내 문구만 표시한다.
+
 ## AI 서비스 (ai-service)
 
 Part 6의 AI 4방향은 별도 FastAPI 서비스가 담당하고, Anthropic Claude Sonnet 4.5를 사용한다.

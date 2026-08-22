@@ -3,6 +3,9 @@ spring:
     name: festival
   config:
     import:
+      # 루트 .env를 properties로 읽어 셸에 관계없이 TOUR_API_KEY 등을 주입한다.
+      # 실제 환경변수(도커·CI)가 항상 우선한다.
+      - optional:file:./.env[.properties]
       - optional:classpath:policies/risk-rules.yml
       - optional:classpath:policies/recommendation-catalog.yml
 
@@ -26,6 +29,9 @@ festival:
     visitor-reference-years-back: ${VISITOR_REFERENCE_YEARS_BACK:1}
     # CSV #9 문체부 지역축제 개최 계획 현황. 파일이 없으면 재개최 실적 조인만 비활성된다.
     festival-history-csv: ${FESTIVAL_HISTORY_CSV:classpath:data/festival-history.csv}
+  client:
+    # 브라우저용 Google Maps 키. 공개되는 값이므로 콘솔에서 HTTP 리퍼러 제한을 건다.
+    google-maps-api-key: ${GOOGLE_MAPS_API_KEY:}
   dashboard:
     max-concentration-places: 10
     max-volatility-places: 10
