@@ -23,6 +23,9 @@ import java.util.Optional;
 @Component
 public class FestivalHistoryRepository {
 
+    // 부분 매칭에 쓸 최소 글자 수. 너무 짧은 이름으로 엉뚱한 축제가 붙는 것을 막는다.
+    private static final int MINIMUM_PARTIAL_MATCH_LENGTH = 4;
+
     private final ResourceLoader resourceLoader;
     private final String location;
     private final Map<String, FestivalHistoryRecord> recordsByName = new HashMap<>();
@@ -63,12 +66,29 @@ public class FestivalHistoryRepository {
         }
     }
 
-    // 축제명으로 재개최 실적을 찾는다. 회차 접두사·공백·괄호는 무시한다.
+    // 축제명으로 재개최 실적을 찾는다. 연도·회차 접두사와 공백·괄호는 무시한다.
     public Optional<FestivalHistoryRecord> findByFestivalName(String festivalName) {
         if (festivalName == null || festivalName.isBlank()) {
             return Optional.empty();
         }
-        return Optional.ofNullable(recordsByName.get(normalize(festivalName)));
+        String key = normalize(festivalName);
+        FestivalHistoryRecord exact = recordsByName.get(key);
+        return exact != null ? Optional.of(exact) : findUniquePartialMatch(key);
+    }
+
+    // 문체부 정식 명칭에 수식어가 붙는 경우가 있다("얼음나라 화천 산천어축제" vs API #8 "화천산천어축제").
+    // 후보가 정확히 하나일 때만 인정해 다른 축제의 실적이 잘못 붙는 것을 막는다.
+    private Optional<FestivalHistoryRecord> findUniquePartialMatch(String key) {
+        if (key.length() < MINIMUM_PARTIAL_MATCH_LENGTH) {
+            return Optional.empty();
+        }
+        List<FestivalHistoryRecord> matches = recordsByName.entrySet().stream()
+                .filter(entry -> entry.getKey().length() >= MINIMUM_PARTIAL_MATCH_LENGTH)
+                .filter(entry -> entry.getKey().contains(key) || key.contains(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .limit(2)
+                .toList();
+        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
     }
 
     // 로딩된 실적 건수. 데이터 상태 표시에 쓴다.
@@ -120,10 +140,15 @@ public class FestivalHistoryRepository {
         return values;
     }
 
+    // 문체부 축제명은 "2026 ...", "제18회 ...", "2026년 30회 ..."처럼 해마다 앞머리가 달라진다.
+    // 연도·회차 표기를 걷어낸 뒤 공백·괄호·구분기호를 지우고 비교한다.
     private String normalize(String value) {
-        return value.replaceAll("^제?\\s*\\d+\\s*회", "")
-                .replaceAll("[\\s()（）\\-_]", "")
-                .toLowerCase();
+        String normalized = value;
+        for (int round = 0; round < 2; round++) {
+            normalized = normalized.replaceAll("^\\s*20\\d{2}\\s*년?\\s*", "");
+            normalized = normalized.replaceAll("^\\s*제?\\s*\\d+\\s*회\\s*", "");
+        }
+        return normalized.replaceAll("[\\s()（）\\-_·,]", "").toLowerCase();
     }
 
     private BigDecimal decimal(String value) {

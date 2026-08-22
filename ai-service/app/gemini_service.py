@@ -1,11 +1,14 @@
-"""기획서 Part 6 · Claude Sonnet 4.5로 4개 방향(B·A·C·D)을 처리한다.
+"""기획서 Part 6 · Gemini로 4개 방향(B·A·C·D)을 처리한다.
 
+기획서 v6.2는 Claude 단일화를 적었지만, 운영 결정에 따라 Gemini를 사용한다.
 모든 호출은 실패 시 규칙 원문 또는 미표시로 폴백해 재현성을 유지한다(6.8).
 """
 
+import json
 import logging
 
-from anthropic import Anthropic
+from google import genai
+from google.genai import types
 
 from app.config import settings
 from app.schemas import (
@@ -26,27 +29,57 @@ _COMMON_RULES = """반드시 지켜야 할 것:
 """
 
 
-# 도구 호출로 구조화 응답을 강제한다. 실패하면 None을 돌려 호출부가 폴백하도록 한다.
-def _call(system: str, user: str, tool_name: str, schema: dict) -> dict | None:
-    if not settings.anthropic_api_key:
+# 폴백 사유를 화면까지 올리기 위한 수집기. list.append는 스레드 안전해 병렬 호출에서도 그대로 쓴다.
+def _record(errors: list | None, message: str) -> None:
+    if errors is not None and message not in errors:
+        errors.append(message)
+
+
+# 응답 스키마를 강제해 구조화 JSON을 받는다. 실패하면 None을 돌려 호출부가 폴백하도록 한다.
+# tool_name은 Gemini 호출에 쓰이지 않고 실패 로그 식별용으로만 남긴다.
+def _call(system: str, user: str, tool_name: str, schema: dict, errors: list | None = None) -> dict | None:
+    if not settings.gemini_api_key:
+        _record(errors, "GEMINI_API_KEY가 설정되지 않아 규칙 원문으로 표시합니다.")
         return None
     try:
-        client = Anthropic(api_key=settings.anthropic_api_key)
-        response = client.messages.create(
-            model=settings.anthropic_model,
-            max_tokens=1024,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-            tools=[{"name": tool_name, "description": system, "input_schema": schema}],
-            tool_choice={"type": "tool", "name": tool_name},
+        client = genai.Client(api_key=settings.gemini_api_key)
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            contents=user,
+            config=types.GenerateContentConfig(
+                system_instruction=system,
+                response_mime_type="application/json",
+                response_schema=schema,
+            ),
         )
-        for block in response.content:
-            if block.type == "tool_use":
-                return block.input
+        if not response.text:
+            _record(errors, "Gemini 응답이 비어 있어 규칙 원문으로 표시합니다.")
+            return None
+        return json.loads(response.text)
+    except Exception as exception:
+        logger.exception("Gemini 호출 실패: %s", tool_name)
+        _record(errors, _reason(exception))
         return None
-    except Exception:
-        logger.exception("Claude 호출 실패: %s", tool_name)
-        return None
+
+
+# 실무자가 바로 조치할 수 있게 대표적인 실패 원인을 한국어로 바꾼다.
+def _reason(exception: Exception) -> str:
+    message = str(exception)
+    if "API_KEY_INVALID" in message or "API key not valid" in message:
+        return "GEMINI_API_KEY가 올바르지 않습니다. .env의 키를 확인하세요."
+    if "PERMISSION_DENIED" in message:
+        return "이 키로는 Gemini API를 쓸 수 없습니다. Google AI Studio에서 키 권한을 확인하세요."
+    if "RESOURCE_EXHAUSTED" in message or "429" in message or "quota" in message.lower():
+        # 무료 티어는 분당 한도와 하루 한도가 따로 있다. 하루 한도면 기다려도 안 풀린다.
+        if "PerDay" in message or "per day" in message.lower():
+            return (
+                "Gemini 무료 티어의 하루 요청 한도를 모두 썼습니다. "
+                "내일 초기화되거나, Google AI Studio에서 유료 플랜으로 올려야 AI 결과가 나옵니다."
+            )
+        return "Gemini 분당 요청 한도를 초과했습니다. 1분 뒤 다시 시도하세요."
+    if "NOT_FOUND" in message or "404" in message:
+        return f"모델 이름을 찾을 수 없습니다: {settings.gemini_model}"
+    return f"Gemini 호출 실패: {message[:200]}"
 
 
 # ---------------------------------------------------------------- 방향 D · 제안 확장
@@ -80,7 +113,7 @@ def _recommendation_fallback(recommendation: dict) -> ExpandedRecommendation:
     )
 
 
-def expand_recommendation(festival_context: dict, recommendation: dict) -> ExpandedRecommendation:
+def expand_recommendation(festival_context: dict, recommendation: dict, errors: list | None = None) -> ExpandedRecommendation:
     """규칙 매칭 제안 1건을 실무자 톤 4단 구조로 확장한다. 실패 시 원본 규칙 문구로 폴백한다."""
     user = (
         f"축제명: {festival_context.get('festivalName')}\n"
@@ -91,7 +124,7 @@ def expand_recommendation(festival_context: dict, recommendation: dict) -> Expan
         f"난이도: {recommendation.get('difficulty')}\n"
         f"카테고리: {recommendation.get('category')}\n"
     )
-    result = _call(_EXPAND_SYSTEM, user, "expanded_recommendation", _EXPAND_SCHEMA)
+    result = _call(_EXPAND_SYSTEM, user, "expanded_recommendation", _EXPAND_SCHEMA, errors)
     if not result:
         return _recommendation_fallback(recommendation)
     return ExpandedRecommendation(
@@ -148,7 +181,7 @@ def _unavailable_estimate(place_name: str, confidence: str) -> PlaceVisitorEstim
     )
 
 
-def estimate_place_visitors(context: dict, place: dict) -> PlaceVisitorEstimate:
+def estimate_place_visitors(context: dict, place: dict, errors: list | None = None) -> PlaceVisitorEstimate:
     """관광지 1곳의 방문 인원 범위를 추정한다. 조건 미달이거나 호출 실패면 미표시로 폴백한다."""
     confidence = estimate_confidence(
         context.get("regionalVisitorAverage") is not None,
@@ -168,7 +201,7 @@ def estimate_place_visitors(context: dict, place: dict) -> PlaceVisitorEstimate:
         f"관광지 집중률 최고값: {place.get('peakRate')} (자기평균 대비 상승폭 {place.get('increasePoint')}%p)\n"
         f"최대 발생일: {place.get('peakDate')}\n"
     )
-    result = _call(_ESTIMATE_SYSTEM, user, "place_visitor_estimate", _ESTIMATE_SCHEMA)
+    result = _call(_ESTIMATE_SYSTEM, user, "place_visitor_estimate", _ESTIMATE_SCHEMA, errors)
     if not result:
         return _unavailable_estimate(place["placeName"], "low")
 
@@ -206,7 +239,7 @@ _SEVERITY_SCHEMA = {
 _RULE_SEVERITY = {"CRITICAL": "critical", "WARNING": "warning", "INFO": "info"}
 
 
-def judge_risk_severity(context: dict, risk: dict) -> RiskSeverityJudgement:
+def judge_risk_severity(context: dict, risk: dict, errors: list | None = None) -> RiskSeverityJudgement:
     """활성 리스크 1건의 심각도를 판정한다. 실패 시 규칙 정의 등급을 그대로 쓴다."""
     rule_log = f"{risk['riskCode']} 매칭됨 · {risk.get('metricKey')}={risk.get('metricValue')}"
     rule_severity = _RULE_SEVERITY.get((risk.get("severity") or "").upper(), "warning")
@@ -221,7 +254,7 @@ def judge_risk_severity(context: dict, risk: dict) -> RiskSeverityJudgement:
         f"규칙 정의 등급: {risk.get('severity')}\n"
         f"근거: {risk.get('evidence')}\n"
     )
-    result = _call(_SEVERITY_SYSTEM, user, "risk_severity", _SEVERITY_SCHEMA)
+    result = _call(_SEVERITY_SYSTEM, user, "risk_severity", _SEVERITY_SCHEMA, errors)
     if not result:
         return RiskSeverityJudgement(
             riskCode=risk["riskCode"],
@@ -255,7 +288,7 @@ _BRIEFING_SCHEMA = {
 }
 
 
-def build_briefing(context: dict) -> ReportBriefing:
+def build_briefing(context: dict, errors: list | None = None) -> ReportBriefing:
     """4개 뷰·리스크·재개최 실적을 3~5문장으로 요약한다. 실패 시 브리핑을 표시하지 않는다."""
     user = (
         f"축제명: {context.get('festivalName')}\n"
@@ -267,7 +300,7 @@ def build_briefing(context: dict) -> ReportBriefing:
         f"급상승 예상 관광지: {context.get('volatilityPlaces')}\n"
         f"동기간 인근 축제: {context.get('nearbyFestivals')}\n"
     )
-    result = _call(_BRIEFING_SYSTEM, user, "report_briefing", _BRIEFING_SCHEMA)
+    result = _call(_BRIEFING_SYSTEM, user, "report_briefing", _BRIEFING_SCHEMA, errors)
     if not result:
         return ReportBriefing(text=None, source="UNAVAILABLE")
     return ReportBriefing(text=result["text"], source="AI")

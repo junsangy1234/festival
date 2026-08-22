@@ -9,6 +9,7 @@ import com.junsang.festival.domain.diagnosis.analysis.RelatedPlaceAnalysisServic
 import com.junsang.festival.domain.diagnosis.calculation.DiagnosisDataContext;
 import com.junsang.festival.domain.diagnosis.calculation.DiagnosisMetric;
 import com.junsang.festival.domain.diagnosis.data.ExternalDataResult;
+import com.junsang.festival.domain.diagnosis.data.ExternalDataStatus;
 import com.junsang.festival.domain.diagnosis.entity.Diagnosis;
 import com.junsang.festival.domain.diagnosis.location.FestivalLocation;
 import com.junsang.festival.domain.diagnosis.location.FestivalLocationService;
@@ -96,7 +97,38 @@ public class DefaultDiagnosisDataCollector implements DiagnosisDataCollector {
         sourceData.put(DiagnosisDataKeys.FESTIVAL_HISTORY, history);
         addFestivalHistoryMetrics(history, metrics);
 
+        addDataStatusMetrics(sourceData, history, metrics);
+
         return new DiagnosisDataContext(diagnosis, Map.copyOf(sourceData), List.copyOf(metrics));
+    }
+
+    // R-DATA-* · 데이터가 빠진 사실 자체를 리스크로 노출한다(기획서 5.2 · 부록 A.2).
+    // 화면이 조용히 비어 있는 대신 "무엇이 왜 빠졌는지"가 리포트에 남는다.
+    private void addDataStatusMetrics(
+            Map<String, Object> sourceData,
+            ExternalDataResult<FestivalHistoryRecord> history,
+            List<DiagnosisMetric> metrics
+    ) {
+        List<String> unusable = sourceData.entrySet().stream()
+                .filter(entry -> entry.getValue() instanceof ExternalDataResult<?>)
+                .filter(entry -> {
+                    ExternalDataStatus status = ((ExternalDataResult<?>) entry.getValue()).status();
+                    return status == ExternalDataStatus.FAILED
+                            || status == ExternalDataStatus.OUT_OF_FORECAST_RANGE;
+                })
+                .map(Map.Entry::getKey)
+                .toList();
+        metrics.add(new DiagnosisMetric(
+                "UNUSABLE_DATA_SOURCE_COUNT",
+                BigDecimal.valueOf(unusable.size()),
+                Map.of("sourceNames", String.join(", ", unusable))
+        ));
+
+        metrics.add(new DiagnosisMetric(
+                "FESTIVAL_NAME_MATCH_FAILED",
+                history.data() == null ? BigDecimal.ONE : BigDecimal.ZERO,
+                Map.of()
+        ));
     }
 
     private ExternalDataResult<ConcentrationAnalysisResult> concentration(Diagnosis diagnosis) {

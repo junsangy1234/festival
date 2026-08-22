@@ -19,14 +19,16 @@ endif
 PORT ?= 8080
 AI_PORT ?= 8000
 
-.PHONY: help init-env run run-ai stop console test test-ai build up rebuild down restart ps logs logs-app logs-db clean reset db compose-config
+.PHONY: help init-env run run-ai stop stop-ai console festival-csv test test-ai build up rebuild down restart ps logs logs-app logs-db clean reset db compose-config
 
 help: ## 사용할 수 있는 명령어 표시
 	@echo make init-env  - .env.example 복사해 .env 생성
 	@echo make run       - H2 local 프로필로 앱 실행, 포트 8080
 	@echo make run-ai    - ai-service 실행, 포트 $(AI_PORT)
 	@echo make stop      - 포트 $(PORT) 점유 프로세스 종료
+	@echo make stop-ai   - 포트 $(AI_PORT) 점유 프로세스 종료
 	@echo make console   - 테스트 콘솔 diagnosis-test.html 열기
+	@echo make festival-csv XLSX="경로" - 문체부 XLSX를 CSV #9로 변환
 	@echo make test      - Java 테스트
 	@echo make test-ai   - ai-service 테스트
 	@echo make up        - Docker 전체 실행 / make down  - 종료
@@ -60,8 +62,15 @@ endif
 run: ## H2를 사용하는 local 프로필로 애플리케이션 실행
 	$(GRADLE) bootRun --args="--spring.profiles.active=local"
 
-run-ai: ## ai-service 실행 (Part 6)
+stop-ai: ## ai-service 포트($(AI_PORT)) 점유 프로세스 종료
+	@$(MAKE) --no-print-directory stop PORT=$(AI_PORT)
+
+# 이미 떠 있는 ai-service를 먼저 정리한다. 안 그러면 Windows에서 WinError 10013으로 죽는다.
+run-ai: stop-ai ## ai-service 실행 (Part 6)
 	cd ai-service && python -m uvicorn app.main:app --port $(AI_PORT) --reload
+
+festival-csv: ## 문체부 XLSX를 CSV #9로 변환 (XLSX="경로" 지정)
+	python scripts/convert_festival_history.py "$(XLSX)"
 
 test: ## Java 전체 테스트 실행
 	$(GRADLE) test

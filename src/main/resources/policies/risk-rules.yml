@@ -80,6 +80,29 @@ diagnosis:
         evidence-fields: [festivalName]
         recommendation-codes: [O-PRG-003]
         enabled: true
+      # 기획서 부록 A.2 · 데이터 상태를 리포트에 드러내 "왜 비었는지"를 남긴다.
+      - risk-code: R-DATA-001
+        title: "일부 데이터 미확보로 표시 축소"
+        description: "외부 데이터 {value}종({sourceNames})을 사용할 수 없어 일부 축과 뷰가 비어 있습니다."
+        severity: INFO
+        priority: 8
+        metric-key: UNUSABLE_DATA_SOURCE_COUNT
+        operator: GREATER_THAN_OR_EQUAL
+        threshold: 1
+        evidence-fields: [sourceNames]
+        recommendation-codes: []
+        enabled: true
+      - risk-code: R-DATA-002
+        title: "재개최 실적 축제명 매칭 실패"
+        description: "문체부 지역축제 실적에서 축제명을 찾지 못해 작년 방문객수·예산을 병기하지 못했습니다."
+        severity: INFO
+        priority: 9
+        metric-key: FESTIVAL_NAME_MATCH_FAILED
+        operator: EQUAL
+        threshold: 1
+        evidence-fields: []
+        recommendation-codes: []
+        enabled: true
       # 아래 규칙은 기존 정책을 보존한 예시다. 현재 정제 지표가 확정되기 전까지 실행하지 않는다.
       - risk-code: R-VOL-004
         title: "관광지 간 변동성 편차 큼"

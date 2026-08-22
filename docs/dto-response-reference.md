@@ -300,7 +300,7 @@ M2 대시보드 응답은 아래 영역으로 구성한다. 종합 지수·순�
 - 리스크 규칙은 `riskCode`, `severity`, `priority`, `metricKey`, 제한된 비교 연산자, `threshold`, 근거 필드, 연결 제안 코드, `enabled`를 가진다.
 - 운영 제안은 `recommendationCode`, `priority`, 제목, 기본 행동 문구, 연결 리스크, `enabled`를 가진다.
 - 알 수 없는 지표, 데이터가 없는 지표, `enabled: false` 규칙은 안전하게 건너뛴다.
-- 운영 제안 응답에는 이후 Claude에 전달할 수 있도록 기본 행동 문구와 근거 수치를 포함하지만 Java 백엔드는 Claude를 호출하지 않는다.
+- 운영 제안 응답에는 이후 AI에 전달할 수 있도록 기본 행동 문구와 근거 수치를 포함하지만 Java 백엔드는 AI를 호출하지 않는다.
 - 위치가 필요한 규칙(R-VOL-005·O-INF-003)은 `festivalLocation.precise`가 `false`면 지표 자체를 만들지 않아 자동으로 건너뛴다.
 
 ### M3 리포트 구조
@@ -327,8 +327,8 @@ M2 대시보드 응답은 아래 영역으로 구성한다. 종합 지수·순�
 
 ## AI 서비스 (ai-service)
 
-Part 6의 AI 4방향은 별도 FastAPI 서비스가 담당하고, Anthropic Claude Sonnet 4.5를 사용한다.
-환경변수는 저장소 루트 `.env` 하나만 쓴다(`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JAVA_BACKEND_BASE_URL`). 로컬 실행은 `make run-ai`.
+Part 6의 AI 4방향은 별도 FastAPI 서비스가 담당하고, Google Gemini를 사용한다(기획서 v6.2의 Claude 단일화에서 운영 결정으로 되돌린 부분).
+환경변수는 저장소 루트 `.env` 하나만 쓴다(`GEMINI_API_KEY`, `GEMINI_MODEL`, `JAVA_BACKEND_BASE_URL`). 로컬 실행은 `make run-ai`.
 
 | API | 방향 | 폴백 |
 | --- | --- | --- |
@@ -337,7 +337,7 @@ Part 6의 AI 4방향은 별도 FastAPI 서비스가 담당하고, Anthropic Clau
 
 - 방향 B(관광지 방문 인원 추정)의 `confidence`는 AI가 아니라 입력 데이터 충족 개수로 결정하고, `low`면 추정치를 표시하지 않는다.
 - 방향 A(리스크 심각도 판정)는 규칙 매칭 원문 로그(`ruleMatchLog`)를 함께 반환해 재현성을 유지한다.
-- 호출 실패 시 방향 D는 규칙 원문, 방향 A는 규칙 정의 등급, 방향 B·C는 미표시로 폴백한다.
+- 호출 실패 시 방향 D는 규칙 원문, 방향 A는 규칙 정의 등급, 방향 B·C는 미표시로 폴백하며, 그 사유를 `warnings`로 함께 돌려준다.
 
 ## FestivalSearchRequest / FestivalListResponse
 

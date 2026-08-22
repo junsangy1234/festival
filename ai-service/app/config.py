@@ -11,9 +11,8 @@ class Settings(BaseSettings):
     # extra=ignore: 루트 .env에는 TOUR_API_KEY 같은 백엔드 전용 값도 함께 들어 있다.
     model_config = SettingsConfigDict(env_file=ROOT_ENV_FILE, extra="ignore")
 
-    # 기획서 v6.2에서 Gemini를 제거하고 Anthropic Claude Sonnet 4.5로 단일화했다.
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-4-5"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
     java_backend_base_url: str = "http://localhost:8080"
 
 

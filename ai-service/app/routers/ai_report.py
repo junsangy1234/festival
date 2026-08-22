@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, HTTPException
 
-from app.claude_service import (
+from app.gemini_service import (
     build_briefing,
     estimate_place_visitors,
     expand_recommendation,
@@ -31,23 +31,30 @@ def create_ai_report(report_id: str) -> AiReportResponse:
     checklist = (report.get("operationProposal") or {}).get("items") or []
     places = top_volatility_places(report)
 
+    # 폴백이 났을 때 그 이유를 한곳에 모아 화면까지 올린다.
+    errors: list[str] = []
+
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
-        briefing_future = pool.submit(build_briefing, context)
-        severity_futures = [pool.submit(judge_risk_severity, context, risk) for risk in risks]
-        estimate_futures = [pool.submit(estimate_place_visitors, context, place) for place in places]
+        briefing_future = pool.submit(build_briefing, context, errors)
+        severity_futures = [pool.submit(judge_risk_severity, context, risk, errors) for risk in risks]
+        estimate_futures = [pool.submit(estimate_place_visitors, context, place, errors) for place in places]
         recommendation_futures = [
             pool.submit(
                 expand_recommendation,
                 context,
                 {**item, "relatedRiskCodes": related_risk_codes(item, risks)},
+                errors,
             )
             for item in checklist
         ]
 
-        return AiReportResponse(
+        response = AiReportResponse(
             reportId=report_id,
             briefing=briefing_future.result(),
             riskSeverities=[future.result() for future in severity_futures],
             placeEstimates=[future.result() for future in estimate_futures],
             recommendations=[future.result() for future in recommendation_futures],
         )
+
+    response.warnings = errors
+    return response

@@ -31,6 +31,22 @@ class FestivalHistoryRepositoryTest {
     }
 
     @Test
+    void 연도_접두사가_붙은_축제명도_실적을_찾는다() {
+        // 문체부 CSV는 "2026 화천산천어축제", API #8은 "화천산천어축제"처럼 앞머리가 다르다.
+        assertThat(repository.findByFestivalName("2026 화천산천어축제")).isPresent();
+        assertThat(repository.findByFestivalName("2026년 22회 화천산천어축제")).isPresent();
+    }
+
+    @Test
+    void 수식어가_붙은_정식명칭도_후보가_하나면_찾는다() {
+        // CSV "2026얼음나라 화천 산천어축제" vs API #8 "화천산천어축제"
+        var record = repository.findByFestivalName("화천산천어축제");
+
+        assertThat(record).isPresent();
+        assertThat(record.get().lastYearVisitors()).isEqualByComparingTo(java.math.BigDecimal.valueOf(1870000));
+    }
+
+    @Test
     void 없는_축제명은_비어_있다() {
         assertThat(repository.findByFestivalName("존재하지 않는 축제")).isEmpty();
     }

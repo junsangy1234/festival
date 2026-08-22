@@ -67,3 +67,5 @@ class AiReportResponse(BaseModel):
     placeEstimates: list[PlaceVisitorEstimate]
     recommendations: list[ExpandedRecommendation]
     operatorPriorityNote: str = OPERATOR_PRIORITY_NOTE
+    # 폴백이 발생했을 때 그 이유. 비어 있으면 전부 AI 결과다.
+    warnings: list[str] = Field(default_factory=list)

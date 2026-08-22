@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.claude_service import expand_recommendation
+from app.gemini_service import expand_recommendation
 from app.java_client import ReportNotFoundError, get_forecast_report
 from app.report_context import build_context, related_risk_codes
 from app.schemas import ExpandRecommendationsResponse
