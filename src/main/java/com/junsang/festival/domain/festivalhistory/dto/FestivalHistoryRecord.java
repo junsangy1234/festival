@@ -1,4 +1,4 @@
-package com.junsang.festival.infra.festivalhistory;
+package com.junsang.festival.domain.festivalhistory.dto;
 
 import java.math.BigDecimal;
 

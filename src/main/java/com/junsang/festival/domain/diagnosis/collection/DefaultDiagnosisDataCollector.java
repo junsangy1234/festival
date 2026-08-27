@@ -17,8 +17,8 @@ import com.junsang.festival.domain.festival.dto.response.CompetingFestivalRespon
 import com.junsang.festival.domain.festival.dto.response.FestivalSummaryResponse;
 import com.junsang.festival.domain.festival.service.FestivalService;
 import com.junsang.festival.domain.festival.service.GeoDistanceService;
-import com.junsang.festival.infra.festivalhistory.FestivalHistoryRecord;
-import com.junsang.festival.infra.festivalhistory.FestivalHistoryRepository;
+import com.junsang.festival.domain.festivalhistory.dto.FestivalHistoryRecord;
+import com.junsang.festival.domain.festivalhistory.repository.FestivalHistoryRepository;
 import com.junsang.festival.infra.tourapi.client.TourConcentrationClient;
 import com.junsang.festival.infra.tourapi.client.TourHubAttractionClient;
 import com.junsang.festival.infra.tourapi.client.TourRegionalVisitorClient;

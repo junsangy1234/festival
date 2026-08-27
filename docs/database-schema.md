@@ -1,6 +1,6 @@
 # Festival 데이터베이스 설계 문서
 
-> **Last updated:** 2026-08-14
+> **Last updated:** 2026-08-27
 > **Migration source of truth:** `src/main/resources/db/migration/V*.sql`  
 > **Database:** PostgreSQL (운영) / H2 PostgreSQL mode (로컬·테스트)  
 > **Document rule:** DB 테이블·컬럼·제약조건·시드 데이터가 추가·수정·삭제될 때마다, 같은 변경에서 Flyway 마이그레이션과 이 문서를 함께 갱신한다.
@@ -51,7 +51,24 @@
 | `status` | VARCHAR(20) | NOT NULL | `PENDING`, `RUNNING`, `COMPLETED`, `PARTIAL`, `FAILED` |
 | `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL | 진단 요청 생성 시각 |
 
-적용된 migration은 `V1__create_diagnoses.sql`부터 `V5__add_festival_location.sql`까지다. `V4`는 축제 진단의 지역 입력을 관광지 집중률 API에 맞는 `areaCode`와 `signguCode`로 분리하고, `V5`는 신규 축제장 주소·좌표를 추가한다.
+적용된 migration은 `V1__create_diagnoses.sql`부터 `V6__create_festival_histories.sql`까지다. `V4`는 축제 진단의 지역 입력을 관광지 집중률 API에 맞는 `areaCode`와 `signguCode`로 분리하고, `V5`는 신규 축제장 주소·좌표를 추가하며, `V6`는 과거 축제 실적을 저장하는 테이블을 추가한다.
+
+### `festival_histories`
+
+문체부 CSV #9의 과거 축제 개최 실적을 저장한다. 애플리케이션 시작 시 `FestivalHistoryImporter`가 설정된 CSV를 읽어 테이블을 갱신하고, 진단 시 축제명으로 작년 방문객 수·예산·최초 개최연도·회차를 조회한다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+| --- | --- | --- | --- |
+| `id` | VARCHAR(36) | 🔑 PK | UUID 기반 이력 ID |
+| `festival_name` | VARCHAR(255) | NOT NULL, 📍 IDX | CSV 축제명 |
+| `region_name` | VARCHAR(100) | NULL | 시도명 |
+| `signgu_name` | VARCHAR(100) | NULL | 시군구명 |
+| `last_year_visitors` | DECIMAL(15,2) | NULL | 전년 방문객 수 |
+| `budget_million_won` | DECIMAL(15,2) | NULL | 예산(백만원) |
+| `first_held_year` | INTEGER | NULL | 최초 개최연도 |
+| `round_count` | INTEGER | NULL | 개최 회차 |
+
+CSV가 없거나 비어 있으면 기존 DB 데이터를 삭제하지 않고 적재를 건너뛴다. CSV가 있으면 배포 기준 데이터로 보고 기존 이력 전체를 교체한다.
 
 ### 관계
 
@@ -68,6 +85,7 @@ diagnoses
 | --- | --- | --- |
 | `Diagnosis` | 사용자가 요청한 축제 진단의 기본 입력값과 상태 보관 | 구현 완료 |
 | `DiagnosisReport` | 진단 결과, 점수, 운영 권고안 및 생성 시점 보관 | 미구현 |
+| `FestivalHistory` | 문체부 CSV #9 과거 축제 실적 보관 | 구현 완료 |
 | 파일 원본 캐시 | 반복 호출되는 관광공사 원본 JSON의 TTL 캐시 | `FileJsonCache` 구현 완료, DB 테이블 없음 |
 
 정제 결과를 서버 재시작 후에도 보존해야 한다면 새 Flyway migration으로 결과 테이블을 추가한다. 현재는 외부 원본 파일 캐시로 재조회 비용을 줄이고, 서버 재시작 뒤 M2 조회 시 정제를 다시 수행한다.

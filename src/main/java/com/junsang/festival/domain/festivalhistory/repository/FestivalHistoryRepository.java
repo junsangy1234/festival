@@ -1,6 +1,8 @@
-package com.junsang.festival.infra.festivalhistory;
+package com.junsang.festival.domain.festivalhistory.repository;
 
+import com.junsang.festival.domain.festivalhistory.dto.FestivalHistoryRecord;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -28,14 +30,25 @@ public class FestivalHistoryRepository {
 
     private final ResourceLoader resourceLoader;
     private final String location;
+    private final FestivalHistoryJpaRepository jpaRepository;
     private final Map<String, FestivalHistoryRecord> recordsByName = new HashMap<>();
 
     public FestivalHistoryRepository(
             ResourceLoader resourceLoader,
             @Value("${festival.external-data.festival-history-csv:classpath:data/festival-history.csv}") String location
     ) {
+        this(resourceLoader, location, null);
+    }
+
+    @Autowired
+    public FestivalHistoryRepository(
+            ResourceLoader resourceLoader,
+            @Value("${festival.external-data.festival-history-csv:classpath:data/festival-history.csv}") String location,
+            FestivalHistoryJpaRepository jpaRepository
+    ) {
         this.resourceLoader = resourceLoader;
         this.location = location;
+        this.jpaRepository = jpaRepository;
     }
 
     @PostConstruct
@@ -72,17 +85,21 @@ public class FestivalHistoryRepository {
             return Optional.empty();
         }
         String key = normalize(festivalName);
-        FestivalHistoryRecord exact = recordsByName.get(key);
-        return exact != null ? Optional.of(exact) : findUniquePartialMatch(key);
+        Map<String, FestivalHistoryRecord> source = databaseRecords();
+        FestivalHistoryRecord exact = source.get(key);
+        return exact != null ? Optional.of(exact) : findUniquePartialMatch(key, source);
     }
 
     // 문체부 정식 명칭에 수식어가 붙는 경우가 있다("얼음나라 화천 산천어축제" vs API #8 "화천산천어축제").
     // 후보가 정확히 하나일 때만 인정해 다른 축제의 실적이 잘못 붙는 것을 막는다.
-    private Optional<FestivalHistoryRecord> findUniquePartialMatch(String key) {
+    private Optional<FestivalHistoryRecord> findUniquePartialMatch(
+            String key,
+            Map<String, FestivalHistoryRecord> source
+    ) {
         if (key.length() < MINIMUM_PARTIAL_MATCH_LENGTH) {
             return Optional.empty();
         }
-        List<FestivalHistoryRecord> matches = recordsByName.entrySet().stream()
+        List<FestivalHistoryRecord> matches = source.entrySet().stream()
                 .filter(entry -> entry.getKey().length() >= MINIMUM_PARTIAL_MATCH_LENGTH)
                 .filter(entry -> entry.getKey().contains(key) || key.contains(entry.getKey()))
                 .map(Map.Entry::getValue)
@@ -91,9 +108,25 @@ public class FestivalHistoryRepository {
         return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
     }
 
+    private Map<String, FestivalHistoryRecord> databaseRecords() {
+        if (jpaRepository == null || jpaRepository.count() == 0) {
+            return recordsByName;
+        }
+        Map<String, FestivalHistoryRecord> records = new HashMap<>();
+        jpaRepository.findAll().forEach(history ->
+                records.put(normalize(history.getFestivalName()), history.toRecord())
+        );
+        return records;
+    }
+
     // 로딩된 실적 건수. 데이터 상태 표시에 쓴다.
     public int size() {
         return recordsByName.size();
+    }
+
+    // 로딩된 CSV 원본을 DB 적재 단계에 제공한다.
+    public List<FestivalHistoryRecord> records() {
+        return List.copyOf(recordsByName.values());
     }
 
     private Optional<FestivalHistoryRecord> toRecord(List<String> headers, List<String> values) {

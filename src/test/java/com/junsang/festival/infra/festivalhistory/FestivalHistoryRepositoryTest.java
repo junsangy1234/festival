@@ -1,5 +1,6 @@
 package com.junsang.festival.infra.festivalhistory;
 
+import com.junsang.festival.domain.festivalhistory.repository.FestivalHistoryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.DefaultResourceLoader;
