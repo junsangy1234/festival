@@ -1,12 +1,1589 @@
 <!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>축제날씨</title>
-    <!-- 루트로 들어와도 테스트 콘솔로 보낸다. 백엔드 전용 프로젝트라 별도 홈 화면은 없다. -->
-    <meta http-equiv="refresh" content="0; url=/diagnosis-test.html">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>축제날씨</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* =========================================================
+   축제날씨 · 실무자 화면
+   화면은 브리핑 보드(C), PDF 출력은 문서형(B)이다.
+   PDF는 별도 라이브러리 없이 브라우저 인쇄(@media print)로 뽑는다.
+   ========================================================= */
+:root{
+  --bg:#F3F3F0; --card:#FFFFFF; --ink:#1F2328; --sub:#6A7078; --line:#E1E1DC;
+  --acc:#17604A; --acc-soft:#E4EDE9;
+  --crit:#B23A32; --warn:#B9822A; --ok:#2F7D5B; --cool:#3B6EA5;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Noto Sans KR",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:13.5px; line-height:1.65; -webkit-font-smoothing:antialiased;
+}
+button{font:inherit; cursor:pointer}
+button:disabled{opacity:.5; cursor:wait}
+:focus-visible{outline:2px solid var(--acc); outline-offset:2px}
+.mono{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+.hide{display:none !important}
+
+/* ---------------- 상단 바 ---------------- */
+.top{position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:16px;
+  padding:0 24px; height:54px; background:var(--card); border-bottom:1px solid var(--line)}
+.logo{font-weight:900; font-size:16px; letter-spacing:-.03em; white-space:nowrap}
+.logo i{display:inline-block; width:9px; height:9px; background:var(--acc); border-radius:50%; margin-right:7px}
+.top .now{color:var(--sub); font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.top .now b{color:var(--ink); font-weight:700}
+.top .rt{margin-left:auto; display:flex; gap:8px; flex:none}
+.bt{border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:3px; padding:7px 14px; font-size:12.5px}
+.bt:hover{border-color:var(--sub)}
+.bt.solid{background:var(--acc); border-color:var(--acc); color:#fff; font-weight:700}
+.bt.solid:hover{background:#12513E}
+
+.page{max-width:1320px; margin:0 auto; padding:18px 24px 48px; display:flex; flex-direction:column; gap:16px}
+
+/* ---------------- 진단 조건 ---------------- */
+.setup{background:var(--card); border:1px solid var(--line); border-radius:4px}
+.setup > summary{list-style:none; cursor:pointer; display:flex; align-items:center; gap:12px; padding:13px 18px; font-size:13px}
+.setup > summary::-webkit-details-marker{display:none}
+.setup > summary b{font-size:14px; font-weight:700}
+.setup > summary .cond{color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.setup > summary .caret{margin-left:auto; color:var(--sub); font-size:11px; flex:none}
+.setup[open] > summary{border-bottom:1px solid var(--line)}
+.setup[open] > summary .caret::after{content:"닫기 ▲"}
+.setup:not([open]) > summary .caret::after{content:"조건 변경 ▼"}
+.setup .bd{padding:18px}
+form.fields{display:grid; grid-template-columns:repeat(4,1fr); gap:12px 14px; align-items:end}
+label.f{display:flex; flex-direction:column; gap:5px; font-size:11.5px; font-weight:700; color:var(--sub); min-width:0}
+label.f input, label.f select{width:100%; border:1px solid var(--line); border-radius:3px; padding:8px 9px;
+  font:inherit; font-size:13px; color:var(--ink); background:var(--card)}
+label.f input:focus, label.f select:focus{border-color:var(--acc); outline:none}
+.fields .span2{grid-column:span 2}
+.fields .actions{grid-column:1 / -1; display:flex; gap:8px; align-items:center; padding-top:2px}
+.fields .actions .picked{color:var(--sub); font-size:12px}
+.fields .actions .picked.on{color:var(--acc); font-weight:600}
+.fields .actions .right{margin-left:auto; display:flex; gap:8px}
+@media (max-width:980px){form.fields{grid-template-columns:repeat(2,1fr)}}
+
+/* ---------------- 알림 ---------------- */
+.notice{border:1px solid var(--line); background:var(--card); border-radius:4px; padding:11px 16px; font-size:13px; color:var(--sub)}
+.notice.err{border-color:var(--crit); color:var(--crit); background:rgba(178,58,50,.05)}
+.notice.busy{border-color:var(--acc); color:var(--acc); background:var(--acc-soft)}
+
+/* ---------------- 히어로 · 종합 판정 ---------------- */
+.hero{background:var(--card); border:1px solid var(--line); border-radius:4px; display:grid; grid-template-columns:1fr 320px}
+@media (max-width:900px){.hero{grid-template-columns:1fr}}
+.hero-l{padding:20px 24px 22px; min-width:0}
+.eyebrow{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.12em; color:var(--sub); font-weight:600}
+.hero h2{margin:5px 0 4px; font-size:25px; font-weight:900; letter-spacing:-.035em; line-height:1.3}
+.hero .sub{color:var(--sub); font-size:13px; margin:0 0 16px}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+.chip{font-size:11.5px; border:1px solid var(--line); border-radius:999px; padding:3px 11px; color:var(--sub); white-space:nowrap}
+.chip.on{border-color:var(--acc); color:var(--acc); background:var(--acc-soft); font-weight:600}
+.chip.bad{border-color:var(--crit); color:var(--crit); background:rgba(178,58,50,.06); font-weight:600}
+.chip.mid{border-color:var(--warn); color:var(--warn); background:rgba(185,130,42,.08); font-weight:600}
+.verdict{border-left:1px solid var(--line); padding:20px 22px; display:flex; flex-direction:column; justify-content:center; gap:10px}
+@media (max-width:900px){.verdict{border-left:0; border-top:1px solid var(--line)}}
+.lights{display:flex; gap:7px}
+.lights i{flex:1; height:6px; border-radius:3px; background:var(--line)}
+.lights i.on-ok{background:var(--ok)} .lights i.on-warn{background:var(--warn)} .lights i.on-crit{background:var(--crit)}
+.verdict .lv{font-size:21px; font-weight:900; letter-spacing:-.03em}
+.verdict .lv.t-crit{color:var(--crit)} .verdict .lv.t-warn{color:var(--warn)} .verdict .lv.t-ok{color:var(--ok)}
+.verdict .ds{font-size:12.5px; color:var(--sub); line-height:1.6; margin:0}
+.verdict .ds b{color:var(--ink); font-weight:700}
+
+/* ---------------- KPI ---------------- */
+.kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
+@media (max-width:1080px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card); border:1px solid var(--line); border-radius:4px; padding:15px 17px 16px}
+.kpi .k{font-size:11.5px; color:var(--sub)}
+.kpi .v{font-size:29px; font-weight:900; letter-spacing:-.04em; font-variant-numeric:tabular-nums; line-height:1.3}
+.kpi .v small{font-size:13px; font-weight:600; color:var(--sub); margin-left:3px; letter-spacing:0}
+.kpi .d{font-size:11.5px; color:var(--sub); font-family:"IBM Plex Mono",monospace}
+.kpi .d b{font-weight:600; color:var(--ink)}
+.kpi svg{margin-top:8px; width:100%; height:34px; display:block}
+
+/* ---------------- 카드 ---------------- */
+.cols{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start}
+@media (max-width:1080px){.cols{grid-template-columns:1fr}}
+.col{display:flex; flex-direction:column; gap:16px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:4px; overflow:hidden}
+.card > header{display:flex; align-items:baseline; gap:9px; padding:14px 18px 10px}
+.card > header h3{margin:0; font-size:14.5px; font-weight:700; letter-spacing:-.015em}
+.card > header em{font-style:normal; font-size:11.5px; color:var(--sub)}
+.card > header .more{margin-left:auto; font-size:11.5px; color:var(--acc); font-weight:600; border:0; background:none; padding:0}
+.card .bd{padding:0 18px 17px}
+.card .bd.pt{padding-top:4px}
+.list{display:flex; flex-direction:column; gap:1px; background:var(--line); border-top:1px solid var(--line)}
+.row{background:var(--card); display:flex; align-items:center; gap:12px; padding:11px 18px}
+.row .nm{font-weight:600; font-size:13px}
+.row .mt{color:var(--sub); font-size:11.5px}
+.row .num{margin-left:auto; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; font-weight:600; font-size:13.5px; text-align:right; white-space:nowrap}
+.badge{font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:2px; white-space:nowrap;
+  font-family:"IBM Plex Mono",monospace; flex:none}
+.b-crit{background:rgba(178,58,50,.1); color:var(--crit)}
+.b-warn{background:rgba(185,130,42,.13); color:var(--warn)}
+.b-ok{background:rgba(47,125,91,.11); color:var(--ok)}
+.b-cool{background:rgba(59,110,165,.11); color:var(--cool)}
+.b-mute{background:var(--bg); color:var(--sub)}
+.meter{display:grid; grid-template-columns:96px 1fr 74px; gap:11px; align-items:center; font-size:12.5px; margin-bottom:9px}
+.meter .tr{height:8px; background:var(--bg); border-radius:4px; overflow:hidden}
+.meter .tr i{display:block; height:100%; background:var(--acc); border-radius:4px}
+.meter .tr i.low{background:var(--warn)}
+.meter .vl{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; color:var(--sub); font-size:12px}
+.foot{margin:10px 0 0; font-size:11px; color:var(--sub); line-height:1.6; padding-left:13px; list-style:none}
+.foot li{position:relative}
+.foot li::before{content:"·"; position:absolute; left:-11px}
+.todo{background:var(--card); display:flex; gap:11px; padding:11px 18px; align-items:flex-start; text-align:left; width:100%; border:0}
+.todo .cb{width:16px; height:16px; border:1.5px solid var(--line); border-radius:3px; flex:none; margin-top:2px;
+  display:grid; place-items:center; font-size:10px; color:transparent}
+.todo[aria-pressed="true"] .cb{background:var(--acc); border-color:var(--acc); color:#fff}
+.todo[aria-pressed="true"] .tx b{text-decoration:line-through; color:var(--sub)}
+.todo .tx{font-size:13px; line-height:1.5; min-width:0}
+.todo .tx b{display:block; font-weight:600}
+.todo .tx span{color:var(--sub); font-size:11.5px}
+.todo .lv{margin-left:auto; font-size:10.5px; color:var(--sub); font-family:"IBM Plex Mono",monospace; white-space:nowrap; flex:none}
+.risk{background:var(--card); padding:12px 18px 13px; border-left:3px solid var(--line)}
+.risk.CRITICAL{border-left-color:var(--crit)} .risk.WARNING{border-left-color:var(--warn)} .risk.INFO{border-left-color:var(--cool)}
+.risk .hd{display:flex; align-items:center; gap:8px; margin-bottom:3px}
+.risk .hd b{font-size:13px; font-weight:700}
+.risk p{margin:0; font-size:12.5px; color:var(--sub); line-height:1.55}
+.risk .ev{margin-top:6px; font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--sub);
+  border-top:1px dashed var(--line); padding-top:6px; word-break:break-all}
+.risk .ev b{color:var(--ink); font-weight:600}
+.empty{color:var(--sub); font-size:12.5px; padding:2px 0 6px; margin:0}
+table.tb{width:100%; border-collapse:collapse; font-size:12.5px}
+table.tb th{text-align:left; font-size:10.5px; letter-spacing:.06em; color:var(--sub); font-weight:600;
+  font-family:"IBM Plex Mono",monospace; border-bottom:1px solid var(--line); padding:0 8px 6px}
+table.tb td{padding:7px 8px; border-bottom:1px solid var(--line)}
+table.tb td.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+.tb-wrap{overflow-x:auto}
+#map{height:440px; background:var(--bg); border-top:1px solid var(--line)}
+#picker-map{height:420px; background:var(--bg); border:1px solid var(--line); border-radius:3px}
+.inline{display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:var(--sub)}
+.inline input[type=text]{border:1px solid var(--line); border-radius:3px; padding:7px 9px; font:inherit; font-size:12.5px; width:220px}
+.raw{background:var(--card); border:1px solid var(--line); border-radius:4px; padding:12px 18px; font-size:12.5px}
+.raw > summary{cursor:pointer; color:var(--sub)}
+.raw pre{margin:12px 0 0; overflow:auto; max-height:420px; background:#1B1D20; color:#D8D6D0;
+  border-radius:3px; padding:14px; font-size:11.5px; line-height:1.55}
+
+dialog{border:0; border-radius:4px; padding:20px; width:min(940px,92vw); box-shadow:0 24px 60px rgba(31,35,40,.28)}
+dialog::backdrop{background:rgba(31,35,40,.45)}
+.dlg-head{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px}
+.dlg-head h3{margin:0; font-size:16px; font-weight:700}
+.info-window{font-size:12.5px; line-height:1.6; max-width:250px; color:#1F2328}
+.info-window strong{display:block; margin-bottom:4px}
+.info-window button{margin-top:8px; border:1px solid #E1E1DC; background:#fff; border-radius:3px; padding:6px 10px; font-size:12px}
+
+/* =========================================================
+   PDF 내보내기 · 문서형(방향 B)
+   ========================================================= */
+#pdf{position:fixed; inset:0; z-index:40; overflow:auto; background:#FBFAF7}
+#pdf[hidden]{display:none}
+#pdf-bar{position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:14px;
+  padding:11px 22px; background:#fff; border-bottom:1px solid #DFDAD0}
+#pdf-bar .ti{font-family:"Noto Serif KR",serif; font-weight:700; font-size:15px; letter-spacing:-.02em; color:#1B1D20}
+#pdf-bar .ti em{font-style:normal; color:#A8322A}
+#pdf-bar .hint{font-size:12px; color:#6C6A64}
+#pdf-bar .rt{margin-left:auto; display:flex; gap:8px; align-items:center}
+.seg{display:flex; border:1px solid #DFDAD0; border-radius:3px; overflow:hidden}
+.seg button{border:0; background:#fff; color:#6C6A64; padding:7px 13px; font-size:12.5px}
+.seg button[aria-pressed="true"]{background:#2F4858; color:#fff; font-weight:700}
+.pbt{border:1px solid #DFDAD0; background:#fff; color:#1B1D20; border-radius:3px; padding:7px 14px; font-size:12.5px}
+.pbt.solid{background:#2F4858; border-color:#2F4858; color:#fff; font-weight:700}
+
+#doc{
+  --paper:#FBFAF7; --sheet:#FFFFFF; --dink:#1B1D20; --dsub:#6C6A64; --rule:#DFDAD0;
+  --seal:#A8322A; --mark:#2F4858; --tint:#F2EFE8;
+  padding:26px 0 48px; color:var(--dink); font-size:13.5px;
+}
+.sheet{width:680px; margin:0 auto; background:var(--sheet); border:1px solid var(--rule);
+  padding:44px 52px 48px; box-shadow:0 1px 0 rgba(27,29,32,.04), 0 14px 30px rgba(27,29,32,.06)}
+.docmeta{display:flex; justify-content:space-between; gap:10px; font-family:"IBM Plex Mono",monospace;
+  font-size:10.5px; color:var(--dsub); border-bottom:1px solid var(--rule); padding-bottom:8px; margin-bottom:22px}
+.sheet h1{font-family:"Noto Serif KR",serif; font-size:26px; font-weight:700; margin:0 0 6px; letter-spacing:-.03em; line-height:1.35}
+.lede{margin:0 0 22px; color:var(--dsub); font-size:13px}
+.sec{margin-top:26px}
+.sec > h2{font-family:"Noto Serif KR",serif; font-size:15.5px; margin:0 0 10px; padding-bottom:6px;
+  border-bottom:1.5px solid var(--dink); display:flex; align-items:baseline; gap:8px}
+.sec > h2 b{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--seal); font-weight:600}
+.dverdict{display:flex; gap:16px; align-items:center; border:1px solid var(--rule); background:var(--tint); padding:14px 16px; margin-bottom:18px}
+.stamp{width:76px; height:76px; flex:none; border:2.5px solid var(--seal); color:var(--seal); border-radius:50%;
+  display:grid; place-items:center; text-align:center; font-family:"Noto Serif KR",serif;
+  font-weight:700; font-size:17px; line-height:1.15; transform:rotate(-7deg)}
+.stamp.t-warn{border-color:#8A6A16; color:#8A6A16}
+.stamp.t-ok{border-color:#2F5848; color:#2F5848}
+.stamp small{display:block; font-size:9px; letter-spacing:.1em; font-family:"IBM Plex Mono",monospace; font-weight:600}
+.dverdict p{margin:0; font-size:13px; line-height:1.7}
+.dverdict p b{font-weight:700}
+.facts{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:7px}
+.facts li{display:flex; gap:10px; font-size:13px; line-height:1.6}
+.facts li::before{content:"—"; color:var(--seal); flex:none}
+table.dtb{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:4px}
+table.dtb th{text-align:left; font-weight:600; font-size:10.5px; letter-spacing:.08em; color:var(--dsub);
+  font-family:"IBM Plex Mono",monospace; border-bottom:1px solid var(--dink); padding:0 8px 6px}
+table.dtb td{padding:8px; border-bottom:1px solid var(--rule); vertical-align:top}
+table.dtb td.num{text-align:right; font-variant-numeric:tabular-nums; font-family:"IBM Plex Mono",monospace; white-space:nowrap}
+table.dtb .sm{color:var(--dsub); margin-top:3px; font-size:12px}
+table.dtb .code{font-family:"IBM Plex Mono",monospace; font-size:11px; margin-top:5px; color:var(--dsub)}
+.dsev{font-family:"IBM Plex Mono",monospace; font-size:10px; font-weight:600; padding:2px 6px;
+  border:1px solid; border-radius:2px; white-space:nowrap; display:inline-block}
+.dsev.CRITICAL{color:var(--seal); border-color:var(--seal); background:rgba(168,50,42,.06)}
+.dsev.WARNING{color:#8A6A16; border-color:#C6A64E; background:rgba(198,166,78,.1)}
+.dsev.INFO{color:var(--mark); border-color:#9BB0BD; background:rgba(47,72,88,.06)}
+.dmeter{display:grid; grid-template-columns:104px 1fr 88px; gap:11px; align-items:center; font-size:12.5px; margin-bottom:8px}
+.dmeter .tr{height:9px; background:var(--tint)}
+.dmeter .tr i{display:block; height:100%; background:var(--mark)}
+.dmeter .vl{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; color:var(--dsub)}
+.dnote{margin:12px 0 0; font-size:11.5px; color:var(--dsub); line-height:1.65; border-left:2px solid var(--rule); padding-left:11px}
+.dstatus{display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:9.5px; font-weight:600; padding:2px 6px; border-radius:2px}
+.dstatus.AVAILABLE{background:rgba(47,88,72,.1); color:#2F5848}
+.dstatus.NO_DATA,.dstatus.OUT_OF_FORECAST_RANGE{background:rgba(198,166,78,.16); color:#8A6A16}
+.dstatus.FAILED{background:rgba(168,50,42,.1); color:#A8322A}
+#doc.summary [data-full]{display:none}
+
+body.pdf-open{overflow:hidden}
+@media print{
+  @page{size:A4; margin:16mm 14mm}
+  html,body{background:#fff}
+  /* PDF 화면을 연 상태에서만 문서만 인쇄한다. 그냥 Ctrl+P를 누르면 화면 그대로 나간다. */
+  body.pdf-open > *:not(#pdf){display:none !important}
+  body.pdf-open #pdf{position:static; overflow:visible; background:#fff}
+  #pdf-bar{display:none !important}
+  #doc{padding:0}
+  .sheet{width:auto; border:0; box-shadow:none; padding:0; margin:0}
+  .sec{break-inside:avoid}
+  table.dtb tr{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+}
+</style>
 </head>
 <body>
-<p><a href="/diagnosis-test.html">축제날씨 테스트 콘솔로 이동</a></p>
+
+<header class="top">
+  <span class="logo"><i></i>축제날씨</span>
+  <span class="now" id="top-now">진단 조건을 입력하고 실행하세요.</span>
+  <div class="rt">
+    <button type="button" class="bt" id="rerun-button">진단 재실행</button>
+    <button type="button" class="bt solid" id="pdf-open" disabled>PDF 내보내기</button>
+  </div>
+</header>
+
+<main class="page">
+
+  <details class="setup" id="setup" open>
+    <summary>
+      <b>진단 조건</b>
+      <span class="cond" id="cond-line">축제명 · 지역 · 기간을 입력하세요</span>
+      <span class="caret"></span>
+    </summary>
+    <div class="bd">
+      <form class="fields" id="diagnosis-form">
+        <label class="f span2">축제명<input name="festivalName" value="원주 여름 음악축제" required></label>
+        <label class="f">시·도<select name="areaCode" id="area-code" required></select></label>
+        <label class="f">시·군·구<select name="signguCode" id="signgu-code" required></select></label>
+
+        <label class="f">시작일<input type="date" name="startDate" required></label>
+        <label class="f">종료일<input type="date" name="endDate" required></label>
+        <label class="f">축제 종류
+          <select name="festivalType">
+            <option value="문화예술">문화예술</option>
+            <option value="전통역사">전통역사</option>
+            <option value="생태자연">생태자연</option>
+            <option value="특산물">특산물</option>
+            <option value="기타">기타</option>
+          </select>
+        </label>
+        <label class="f">규모
+          <select name="scale"><option value="소규모">소규모</option><option value="중규모" selected>중규모</option><option value="대규모">대규모</option></select>
+        </label>
+
+        <label class="f">개최 유형
+          <select name="recurrenceType" id="recurrence-type"><option value="신규" selected>신규</option><option value="재개최">재개최</option></select>
+        </label>
+        <label class="f span2" id="address-field">축제 주소<input name="festivalAddress" value="강원특별자치도 원주시 지정면 소금산로 12"></label>
+        <label class="f hide" id="existing-content-field">기존 축제 contentId<input name="existingFestivalContentId" placeholder="예: 2561795"></label>
+        <label class="f" id="lat-field">위도<input type="number" name="latitude" value="37.3682" step="0.0000001"></label>
+        <label class="f" id="lng-field">경도<input type="number" name="longitude" value="127.8166" step="0.0000001"></label>
+
+        <div class="actions">
+          <button type="button" class="bt" id="open-picker">지도에서 개최지 선택</button>
+          <span class="picked" id="picked-festival">좌표를 비우면 시군구 중심으로 근사합니다.</span>
+          <div class="right">
+            <button type="submit" class="bt solid" id="submit-button">진단 실행</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </details>
+
+  <p class="notice" id="notice">진단을 실행하면 결과가 여기에 표시됩니다.</p>
+
+  <div id="results" class="hide" style="display:flex; flex-direction:column; gap:16px">
+
+    <section class="hero">
+      <div class="hero-l">
+        <span class="eyebrow" id="hero-eyebrow"></span>
+        <h2 id="hero-name"></h2>
+        <p class="sub" id="hero-sub"></p>
+        <div class="chips" id="hero-chips"></div>
+      </div>
+      <div class="verdict">
+        <div class="lights" id="verdict-lights"><i></i><i></i><i></i></div>
+        <div class="lv" id="verdict-level"></div>
+        <p class="ds" id="verdict-desc"></p>
+      </div>
+    </section>
+
+    <section class="kpis" id="kpis"></section>
+
+    <div class="cols">
+      <div class="col">
+        <section class="card">
+          <header><h3>먼저 처리할 일</h3><em id="todo-count"></em></header>
+          <div class="list" id="todo-list"></div>
+        </section>
+        <section class="card">
+          <header><h3>리스크</h3><em id="risk-count"></em></header>
+          <div class="list" id="risk-list"></div>
+        </section>
+        <section class="card">
+          <header><h3>데이터 프로필</h3><em>4축 · 합산하지 않습니다</em></header>
+          <div class="bd pt" id="profile-box"></div>
+        </section>
+        <section class="card">
+          <header><h3>여유 관광지</h3><em id="dist-count"></em></header>
+          <div class="list" id="dist-list"></div>
+        </section>
+      </div>
+
+      <div class="col">
+        <section class="card">
+          <header><h3>관광지 변동 상황</h3><em id="vol-count"></em></header>
+          <div class="list" id="vol-list"></div>
+        </section>
+        <section class="card">
+          <header><h3>개최기간 관광 흐름</h3><em>일별 집중률 예측</em></header>
+          <div class="bd pt" id="flow-box"></div>
+        </section>
+        <section class="card">
+          <header><h3>동기간 인근 축제</h3><em id="comp-count"></em></header>
+          <div class="list" id="comp-list"></div>
+        </section>
+        <section class="card">
+          <header><h3>시군구 방문자</h3><em id="visitor-ref"></em></header>
+          <div class="bd pt" id="visitor-box"></div>
+        </section>
+      </div>
+    </div>
+
+    <section class="card">
+      <header><h3>축제장 주변</h3><em id="map-notice"></em></header>
+      <div class="bd pt"><div class="chips" id="map-legend"></div></div>
+      <div id="map"></div>
+    </section>
+
+    <section class="card">
+      <header><h3>AI 리포트</h3><em>ai-service 필요</em></header>
+      <div class="bd pt">
+        <div class="inline" style="margin-bottom:12px">
+          <span>ai-service 주소</span>
+          <input type="text" id="ai-base-url" value="http://localhost:8000">
+          <button type="button" class="bt" id="ai-button">AI 리포트 생성</button>
+        </div>
+        <div id="ai-result"><p class="empty">GEMINI_API_KEY가 없으면 폴백 결과가 표시됩니다.</p></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <header><h3>데이터 출처</h3><em id="source-count"></em></header>
+      <div class="bd pt tb-wrap" id="source-box"></div>
+    </section>
+
+    <details class="raw">
+      <summary>Raw JSON</summary>
+      <pre id="raw-json"></pre>
+    </details>
+  </div>
+</main>
+
+<!-- 개최지 선택 (API #8) -->
+<dialog id="picker">
+  <div class="dlg-head">
+    <h3>지도에서 축제 개최지 선택</h3>
+    <button type="button" class="bt" id="close-picker">닫기</button>
+  </div>
+  <div class="inline" style="margin-bottom:10px">
+    <label class="inline"><input type="checkbox" id="picker-signgu-only"> 선택한 시·군·구만 보기</label>
+    <label class="inline">조회 기간 <input type="date" id="picker-from"></label>
+    <span>~</span>
+    <input type="date" id="picker-to">
+    <button type="button" class="bt" id="picker-reload">다시 조회</button>
+  </div>
+  <p class="notice" id="picker-notice">지도를 불러오는 중…</p>
+  <div id="picker-map"></div>
+</dialog>
+
+<!-- PDF 내보내기 (방향 B 문서 디자인) -->
+<div id="pdf" hidden>
+  <div id="pdf-bar">
+    <span class="ti">축제<em>날씨</em> 진단 리포트</span>
+    <span class="hint" id="pdf-hint"></span>
+    <div class="rt">
+      <div class="seg" role="group" aria-label="출력 범위">
+        <button type="button" id="mode-summary" aria-pressed="true">A4 요약본</button>
+        <button type="button" id="mode-full" aria-pressed="false">전체 리포트</button>
+      </div>
+      <button type="button" class="pbt solid" id="pdf-print">PDF로 저장</button>
+      <button type="button" class="pbt" id="pdf-close">닫기</button>
+    </div>
+  </div>
+  <div id="doc" class="summary"><article class="sheet" id="sheet"></article></div>
+</div>
+
+<script>
+/* ================= 공용 ================= */
+const $ = id => document.getElementById(id);
+const el = (tag, className, content) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (content !== undefined && content !== null) node.textContent = content;
+    return node;
+};
+const clear = id => { const node = $(id); node.replaceChildren(); return node; };
+const text = v => v === null || v === undefined || v === '' ? '-' : String(v);
+const number = v => v === null || v === undefined ? '-' : Number(v).toLocaleString('ko-KR');
+const round1 = v => v === null || v === undefined ? null : Math.round(Number(v) * 10) / 10;
+const dateText = d => d.toISOString().slice(0, 10);
+const tourDate = v => v.replaceAll('-', '');
+const isoDate = v => `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`;
+const kdate = v => v ? String(v).replaceAll('-', '.') : '-';
+
+const svgNode = (tag, attributes, content) => {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.entries(attributes).forEach(([k, v]) => node.setAttribute(k, v));
+    if (content !== undefined) node.textContent = content;
+    return node;
+};
+
+async function request(url, options = {}) {
+    const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.message || body.detail || `HTTP ${response.status}`);
+    return body;
+}
+
+const form = $('diagnosis-form');
+const recurrenceType = $('recurrence-type');
+const areaCode = $('area-code');
+const signguCode = $('signgu-code');
+const notice = $('notice');
+const state = {
+    reportId: null, dashboard: null, report: null,
+    map: null, overlays: [], infoWindow: null,
+    pickerMap: null, pickerOverlays: [], pickerInfoWindow: null
+};
+
+const BADGE = {
+    SURGING: { cls: 'b-crit', label: '급증', color: '#B23A32' },
+    WARNING: { cls: 'b-warn', label: '주의', color: '#B9822A' },
+    STABLE: { cls: 'b-ok', label: '안정', color: '#2F7D5B' },
+    RELAXED: { cls: 'b-cool', label: '여유', color: '#3B6EA5' }
+};
+const badgeOf = level => BADGE[level] || { cls: 'b-mute', label: text(level), color: '#6A7078' };
+const SEVERITY = { CRITICAL: { cls: 'b-crit', label: '긴급' }, WARNING: { cls: 'b-warn', label: '주의' }, INFO: { cls: 'b-cool', label: '참고' } };
+const sevOf = s => SEVERITY[s] || { cls: 'b-mute', label: text(s) };
+const STATUS_LABEL = { AVAILABLE: '정상', NO_DATA: '데이터 없음', OUT_OF_FORECAST_RANGE: '예측 범위 밖', FAILED: '호출 실패' };
+const SOURCE_LABEL = {
+    KOR_SERVICE: '재개최 축제 · API #8 자동 로드',
+    USER_INPUT: '신규 축제 · 직접 입력 좌표',
+    SIGNGU_CENTER: '미입력 · 시군구 중심 근사',
+    UNAVAILABLE: '좌표 미확보'
+};
+
+/* ================= 초기화 ================= */
+const today = new Date();
+const startDefault = new Date(today); startDefault.setDate(today.getDate() + 7);
+const endDefault = new Date(today); endDefault.setDate(today.getDate() + 10);
+form.startDate.value = dateText(startDefault);
+form.endDate.value = dateText(endDefault);
+
+loadRegions().catch(error => fail(`지역 목록을 불러오지 못했습니다: ${error.message}`));
+areaCode.addEventListener('change', () => loadDistricts(areaCode.value));
+
+recurrenceType.addEventListener('change', () => {
+    const isNew = recurrenceType.value === '신규';
+    ['address-field', 'lat-field', 'lng-field'].forEach(id => $(id).classList.toggle('hide', !isNew));
+    $('existing-content-field').classList.toggle('hide', isNew);
+});
+
+async function loadRegions() {
+    const response = await request('/api/v1/diagnosis-regions');
+    areaCode.replaceChildren();
+    response.regions.forEach(region => areaCode.add(new Option(region.name, region.areaCode)));
+    const gangwon = response.regions.find(region => region.areaCode === '51');
+    if (gangwon) areaCode.value = gangwon.areaCode;
+    await loadDistricts(areaCode.value);
+}
+
+async function loadDistricts(selectedAreaCode, preferredSignguCode) {
+    const response = await request(`/api/v1/diagnosis-regions/${selectedAreaCode}/districts`);
+    signguCode.replaceChildren();
+    response.districts.forEach(district => signguCode.add(new Option(district.name, district.signguCode)));
+    const preferred = response.districts.find(d => d.signguCode === (preferredSignguCode || '51130'));
+    if (preferred) signguCode.value = preferred.signguCode;
+}
+
+function fail(message) {
+    notice.className = 'notice err';
+    notice.textContent = message;
+}
+
+/* ================= 진단 실행 ================= */
+form.addEventListener('submit', async event => {
+    event.preventDefault();
+    await runDiagnosis();
+});
+$('rerun-button').addEventListener('click', () => runDiagnosis());
+
+async function runDiagnosis() {
+    const values = new FormData(form);
+    const isNew = values.get('recurrenceType') === '신규';
+    const optional = name => {
+        const value = values.get(name);
+        return value === null || value === '' ? null : Number(value);
+    };
+    const payload = {
+        festivalName: values.get('festivalName'),
+        areaCode: values.get('areaCode'),
+        signguCode: values.get('signguCode'),
+        startDate: values.get('startDate'),
+        endDate: values.get('endDate'),
+        festivalType: values.get('festivalType'),
+        scale: values.get('scale'),
+        recurrenceType: values.get('recurrenceType'),
+        existingFestivalContentId: isNew ? null : values.get('existingFestivalContentId'),
+        festivalAddress: isNew ? values.get('festivalAddress') : null,
+        latitude: isNew ? optional('latitude') : null,
+        longitude: isNew ? optional('longitude') : null
+    };
+
+    $('submit-button').disabled = true;
+    $('rerun-button').disabled = true;
+    notice.className = 'notice busy';
+    notice.textContent = '진단을 실행하는 중…';
+
+    try {
+        const created = await request('/api/v1/reports', { method: 'POST', body: JSON.stringify(payload) });
+        state.reportId = created.reportId;
+        state.dashboard = await request(`/api/v1/reports/${created.reportId}/dashboard`);
+        state.report = await request(`/api/v1/reports/${created.reportId}/forecast-report`);
+
+        notice.className = 'notice';
+        notice.textContent = `진단 완료 · reportId ${created.reportId}`;
+        $('results').classList.remove('hide');
+        $('pdf-open').disabled = false;
+        $('setup').open = false;
+        renderAll();
+        $('raw-json').textContent = JSON.stringify({ dashboard: state.dashboard, forecastReport: state.report }, null, 2);
+        renderMap(state.dashboard).catch(error => { $('map-notice').textContent = error.message; });
+    } catch (error) {
+        fail(error.message);
+    } finally {
+        $('submit-button').disabled = false;
+        $('rerun-button').disabled = false;
+    }
+}
+
+/* ================= 파생값 ================= */
+// 종합 판정은 새 지표가 아니라 리스크 심각도 집계다(종합 점수·등급을 만들지 않는다).
+function verdictOf(risks) {
+    const critical = risks.filter(r => r.severity === 'CRITICAL').length;
+    const warning = risks.filter(r => r.severity === 'WARNING').length;
+    if (critical) return { tone: 'crit', lights: 3, label: '주의 · 조정 필요', stamp: '주의', stampEn: 'CAUTION' };
+    if (warning) return { tone: 'warn', lights: 2, label: '관찰 필요', stamp: '관찰', stampEn: 'WATCH' };
+    return { tone: 'ok', lights: 1, label: '특이사항 없음', stamp: '양호', stampEn: 'CLEAR' };
+}
+
+function verdictSentence(dashboard) {
+    const risks = dashboard.risks || [];
+    if (!risks.length) return '매칭된 리스크가 없습니다. 데이터 출처의 수집 상태를 함께 확인하세요.';
+    const top = [...risks].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))[0];
+    return top.description || top.title || '';
+}
+
+// 개최기간 중 가장 높은 집중률과 그 관광지·날짜
+function peakOf(concentration) {
+    let best = null;
+    (concentration?.dailyConcentrations || []).forEach(day => (day.places || []).forEach(place => {
+        if (place.concentrationRate === null || place.concentrationRate === undefined) return;
+        if (!best || place.concentrationRate > best.rate) best = { rate: place.concentrationRate, date: day.date, placeName: place.placeName };
+    }));
+    return best;
+}
+
+function dailyMaxSeries(concentration) {
+    return (concentration?.dailyConcentrations || []).map(day => {
+        const rates = (day.places || []).map(p => p.concentrationRate).filter(v => v !== null && v !== undefined);
+        return rates.length ? Math.max(...rates) : null;
+    });
+}
+
+function countBy(items, key) {
+    return items.reduce((acc, item) => { acc[item[key]] = (acc[item[key]] || 0) + 1; return acc; }, {});
+}
+
+/* ================= 렌더 ================= */
+function renderAll() {
+    const dashboard = state.dashboard;
+    const report = state.report;
+    renderHero(dashboard, report);
+    renderKpis(dashboard);
+    renderTodo(dashboard);
+    renderRisks(dashboard.risks || []);
+    renderProfile(dashboard.profile);
+    renderDistribution(dashboard.distribution);
+    renderVolatility(dashboard.volatility);
+    renderFlow(dashboard.concentration);
+    renderCompeting(dashboard.competing);
+    renderVisitors(dashboard.regionalVisitors);
+    renderSources(dashboard.dataStatuses || []);
+    renderDoc(dashboard, report);
+}
+
+function renderHero(dashboard, report) {
+    const diagnosis = dashboard.diagnosis || {};
+    const hero = report?.hero || {};
+    const name = hero.festivalName || diagnosis.festivalName || '축제';
+    const period = `${kdate(hero.startDate || diagnosis.startDate)} – ${kdate(hero.endDate || diagnosis.endDate)}`;
+    const location = dashboard.festivalLocation?.address || diagnosis.festivalAddress || '';
+
+    $('hero-eyebrow').textContent = `진단 완료 · ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}`;
+    $('hero-name').textContent = name;
+    $('hero-sub').textContent = [period, location].filter(Boolean).join(' · ');
+    $('top-now').replaceChildren(el('b', null, name), document.createTextNode(` · ${period}`));
+    $('cond-line').textContent = `${name} · ${period} · ${text(diagnosis.festivalType)} · ${text(diagnosis.scale)} · ${text(diagnosis.recurrenceType)}`;
+
+    const chips = clear('hero-chips');
+    if (hero.daysUntilStart !== null && hero.daysUntilStart !== undefined) {
+        chips.append(el('span', 'chip on', hero.daysUntilStart >= 0 ? `D-${hero.daysUntilStart}` : `개최 후 ${-hero.daysUntilStart}일`));
+    }
+    [diagnosis.festivalType, diagnosis.scale, diagnosis.recurrenceType].filter(Boolean)
+        .forEach(v => chips.append(el('span', 'chip on', v)));
+
+    const statuses = dashboard.dataStatuses || [];
+    const ok = statuses.filter(s => s.status === 'AVAILABLE').length;
+    chips.append(el('span', `chip ${ok === statuses.length ? '' : 'mid'}`.trim(), `데이터 ${ok}/${statuses.length} 정상`));
+
+    const location$ = dashboard.festivalLocation;
+    if (location$) {
+        chips.append(el('span', `chip ${location$.precise ? '' : 'mid'}`.trim(), SOURCE_LABEL[location$.source] || location$.source));
+    }
+
+    const verdict = verdictOf(dashboard.risks || []);
+    const lights = clear('verdict-lights');
+    ['ok', 'warn', 'crit'].forEach((tone, index) => {
+        lights.append(el('i', index < verdict.lights ? `on-${tone}` : ''));
+    });
+    const level = $('verdict-level');
+    level.className = `lv t-${verdict.tone}`;
+    level.textContent = verdict.label;
+    $('verdict-desc').textContent = verdictSentence(dashboard);
+}
+
+function renderKpis(dashboard) {
+    const root = clear('kpis');
+    const peak = peakOf(dashboard.concentration);
+    const volatilityPlaces = dashboard.volatility?.places || [];
+    const mapPlaces = dashboard.map?.places || [];
+    const near = mapPlaces.filter(p => p.withinNearestRadius);
+    const nearHot = near.filter(p => p.badge === 'SURGING' || p.badge === 'WARNING');
+    const festivals = dashboard.competing?.festivals || [];
+    const nearest = festivals.map(f => Number(f.distanceKm)).filter(v => !Number.isNaN(v)).sort((a, b) => a - b)[0];
+    const risks = dashboard.risks || [];
+    const severityCount = countBy(risks, 'severity');
+    const badgeCount = countBy(volatilityPlaces, 'level');
+    const topIncrease = volatilityPlaces.map(p => p.increasePoint).filter(v => v !== null && v !== undefined).sort((a, b) => b - a)[0];
+
+    root.append(kpiCard({
+        label: '예상 최대 집중률',
+        value: peak ? round1(peak.rate) : null,
+        unit: '%',
+        detail: peak ? `${peak.placeName} · ${kdate(peak.date)}` : '집중률 예측 데이터 없음',
+        chart: sparkLine(dailyMaxSeries(dashboard.concentration))
+    }));
+    root.append(kpiCard({
+        label: `반경 ${round1(dashboard.map?.nearestRadiusKm) ?? 1}km 급증 관광지`,
+        value: dashboard.map?.site ? nearHot.length : null,
+        unit: '곳',
+        detail: dashboard.map?.site
+            ? `반경 내 ${near.length}곳 · 전체 ${mapPlaces.length}곳`
+            : '좌표 미확보 · 반경 판정 스킵',
+        chart: stackBar([
+            ['SURGING', badgeCount.SURGING || 0, '#B23A32'],
+            ['WARNING', badgeCount.WARNING || 0, '#B9822A'],
+            ['STABLE', badgeCount.STABLE || 0, '#2F7D5B'],
+            ['RELAXED', badgeCount.RELAXED || 0, '#3B6EA5']
+        ])
+    }));
+    root.append(kpiCard({
+        label: '동기간 인근 축제',
+        value: dashboard.competing?.totalCount ?? null,
+        unit: '건',
+        detail: nearest !== undefined ? `최근접 ${round1(nearest)}km` : '겹치는 축제 없음',
+        chart: distanceDots(festivals)
+    }));
+    root.append(kpiCard({
+        label: '처리할 리스크',
+        value: risks.length,
+        unit: '건',
+        detail: `긴급 ${severityCount.CRITICAL || 0} · 주의 ${severityCount.WARNING || 0} · 참고 ${severityCount.INFO || 0}`,
+        chart: stackBar([
+            ['CRITICAL', severityCount.CRITICAL || 0, '#B23A32'],
+            ['WARNING', severityCount.WARNING || 0, '#B9822A'],
+            ['INFO', severityCount.INFO || 0, '#3B6EA5']
+        ])
+    }));
+
+    if (topIncrease !== undefined) {
+        root.firstChild.querySelector('.d').append(el('span', null, ` · 자기평균 +${round1(topIncrease)}%p`));
+    }
+}
+
+function kpiCard({ label, value, unit, detail, chart }) {
+    const card = el('div', 'kpi');
+    card.append(el('div', 'k', label));
+    const v = el('div', 'v');
+    if (value === null || value === undefined) {
+        v.append(el('span', null, '—'));
+    } else {
+        v.append(document.createTextNode(number(value)));
+        if (unit) v.append(el('small', null, unit));
+    }
+    card.append(v);
+    card.append(el('div', 'd', detail));
+    if (chart) card.append(chart);
+    return card;
+}
+
+function sparkLine(series) {
+    const values = series.filter(v => v !== null);
+    if (values.length < 2) return null;
+    const max = Math.max(...values, 1);
+    const stepX = 200 / (series.length - 1);
+    const y = v => 32 - (v / max) * 28;
+    const points = series.map((v, i) => v === null ? null : `${(stepX * i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean);
+    const svg = svgNode('svg', { viewBox: '0 0 200 34', role: 'img', 'aria-label': '일별 최고 집중률 추이', preserveAspectRatio: 'none' });
+    svg.append(svgNode('polyline', { points: points.join(' '), fill: 'none', stroke: '#B23A32', 'stroke-width': 1.8, 'vector-effect': 'non-scaling-stroke' }));
+    const peakIndex = series.indexOf(Math.max(...values));
+    svg.append(svgNode('circle', { cx: (stepX * peakIndex).toFixed(1), cy: y(series[peakIndex]).toFixed(1), r: 3, fill: '#B23A32' }));
+    return svg;
+}
+
+function stackBar(parts) {
+    const total = parts.reduce((sum, [, count]) => sum + count, 0);
+    if (!total) return null;
+    const svg = svgNode('svg', { viewBox: '0 0 200 34', role: 'img', 'aria-label': '구성 비율', preserveAspectRatio: 'none' });
+    let x = 0;
+    parts.filter(([, count]) => count > 0).forEach(([name, count, color]) => {
+        const width = (count / total) * 200;
+        const rect = svgNode('rect', { x: x.toFixed(1), y: 12, width: Math.max(width - 2, 1).toFixed(1), height: 12, fill: color });
+        rect.append(svgNode('title', {}, `${name} ${count}`));
+        svg.append(rect);
+        x += width;
+    });
+    return svg;
+}
+
+function distanceDots(festivals) {
+    const distances = festivals.map(f => Number(f.distanceKm)).filter(v => !Number.isNaN(v));
+    if (!distances.length) return null;
+    const max = Math.max(30, ...distances);
+    const svg = svgNode('svg', { viewBox: '0 0 200 34', role: 'img', 'aria-label': '인근 축제 거리 분포' });
+    svg.append(svgNode('line', { x1: 4, y1: 18, x2: 196, y2: 18, stroke: '#E1E1DC', 'stroke-width': 1.5 }));
+    svg.append(svgNode('circle', { cx: 4, cy: 18, r: 5, fill: '#17604A' }));
+    distances.forEach((distance, index) => {
+        const dot = svgNode('circle', { cx: (4 + (distance / max) * 192).toFixed(1), cy: 18, r: 4, fill: index === 0 ? '#B9822A' : '#6A7078' });
+        dot.append(svgNode('title', {}, `${round1(distance)}km`));
+        svg.append(dot);
+    });
+    svg.append(svgNode('text', { x: 196, y: 32, 'font-size': 8, fill: '#6A7078', 'text-anchor': 'end', 'font-family': 'monospace' }, `${round1(max)}km`));
+    return svg;
+}
+
+function renderTodo(dashboard) {
+    const items = dashboard.recommendations || [];
+    $('todo-count').textContent = `운영 조정 제안 ${items.length}건`;
+    const list = clear('todo-list');
+    if (!items.length) return list.append(emptyRow('연계된 운영 제안이 없습니다.'));
+    items.forEach(item => {
+        const button = el('button', 'todo');
+        button.type = 'button';
+        button.setAttribute('aria-pressed', 'false');
+        button.append(el('span', 'cb', '✓'));
+        const tx = el('span', 'tx');
+        tx.append(el('b', null, item.title || item.recommendationCode));
+        tx.append(el('span', null, [
+            item.recommendationCode,
+            (item.relatedRiskCodes || []).length ? `${item.relatedRiskCodes.join(', ')} 대응` : null,
+            item.category,
+            item.difficulty ? `난이도 ${item.difficulty}` : null
+        ].filter(Boolean).join(' · ')));
+        if (item.defaultAction) tx.append(el('span', null, item.defaultAction));
+        button.append(tx);
+        button.append(el('span', 'lv', item.priority ? `우선순위 ${item.priority}` : ''));
+        // 체크는 화면에서만 유지한다. 저장이 필요하면 별도 API가 있어야 한다.
+        button.addEventListener('click', () => {
+            button.setAttribute('aria-pressed', button.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+        });
+        list.append(button);
+    });
+}
+
+function renderRisks(risks) {
+    $('risk-count').textContent = `${risks.length}건`;
+    const list = clear('risk-list');
+    if (!risks.length) return list.append(emptyRow('매칭된 리스크가 없습니다.'));
+    risks.forEach(risk => {
+        const box = el('div', `risk ${risk.severity}`);
+        const head = el('div', 'hd');
+        const severity = sevOf(risk.severity);
+        head.append(el('span', `badge ${severity.cls}`, severity.label));
+        head.append(el('b', null, risk.title || risk.riskCode));
+        box.append(head);
+        box.append(el('p', null, risk.description || ''));
+        const evidence = el('div', 'ev');
+        evidence.append(el('b', null, risk.riskCode));
+        evidence.append(document.createTextNode(` · ${risk.metricKey} = ${text(risk.metricValue)}`));
+        const pairs = Object.entries(risk.evidence || {}).map(([k, v]) => `${k}=${v}`).join(' ');
+        if (pairs) evidence.append(document.createTextNode(` · ${pairs}`));
+        if ((risk.recommendationCodes || []).length) evidence.append(document.createTextNode(` → ${risk.recommendationCodes.join(', ')}`));
+        box.append(evidence);
+        list.append(box);
+    });
+}
+
+// 축마다 자연 척도가 달라 막대 길이는 각 축의 표시 범위 안에서만 계산한다.
+function ratio(metric) {
+    if (!metric || metric.value === null || metric.value === undefined) return 0;
+    const minimum = Number(metric.minimum ?? 0);
+    const maximum = Number(metric.maximum ?? Math.max(Number(metric.value), 1));
+    const span = maximum - minimum || 1;
+    const filled = (Number(metric.value) - minimum) / span;
+    const oriented = metric.direction === 'LOWER' ? 1 - filled : filled;
+    return Math.max(0, Math.min(1, oriented)) * 100;
+}
+
+const PROFILE_AXES = [
+    ['시기적합도', 'timingFit'],
+    ['여유 관광지', 'relaxedPlaces'],
+    ['연계 풍부도', 'connectivity'],
+    ['카테고리 다양성', 'categoryDiversity']
+];
+
+function metricText(metric) {
+    if (!metric || metric.value === null || metric.value === undefined) return '데이터 없음';
+    return `${metric.value}${metric.unit || ''}${metric.maximum ? ` / ${metric.maximum}` : ''}`;
+}
+
+function renderProfile(profile) {
+    const box = clear('profile-box');
+    if (!profile) return box.append(el('p', 'empty', '프로필 데이터가 없습니다.'));
+    PROFILE_AXES.forEach(([name, key]) => {
+        const metric = profile[key];
+        const percent = ratio(metric);
+        const row = el('div', 'meter');
+        row.append(el('span', null, name));
+        const track = el('span', 'tr');
+        const fill = el('i', percent < 40 ? 'low' : '');
+        fill.style.width = `${percent}%`;
+        track.append(fill);
+        row.append(track);
+        row.append(el('span', 'vl', metricText(metric)));
+        box.append(row);
+    });
+    const notes = el('ul', 'foot');
+    (profile.notes || []).forEach(note => notes.append(el('li', null, note)));
+    box.append(notes);
+}
+
+function renderVolatility(volatility) {
+    const places = volatility?.places || [];
+    $('vol-count').textContent = `전체 ${text(volatility?.totalCount)}곳`;
+    const list = clear('vol-list');
+    if (!places.length) return list.append(emptyRow('관광지 변동 데이터가 없습니다.'));
+    places.forEach(place => {
+        const badge = badgeOf(place.level);
+        const row = el('div', 'row');
+        row.append(el('span', `badge ${badge.cls}`, badge.label));
+        const body = el('span');
+        body.append(el('span', 'nm', place.placeName));
+        body.append(el('br'));
+        body.append(el('span', 'mt', `자기평균 ${text(round1(place.selfAverage))}% · 최고 ${text(round1(place.peakRate))}% · ${kdate(place.peakDate)}`));
+        row.append(body);
+        const value = el('span', 'num', place.increasePoint === null || place.increasePoint === undefined
+            ? '-' : `${place.increasePoint > 0 ? '+' : ''}${round1(place.increasePoint)}%p`);
+        value.style.color = badge.color;
+        row.append(value);
+        list.append(row);
+    });
+}
+
+function renderDistribution(distribution) {
+    const places = distribution?.places || [];
+    $('dist-count').textContent = `전체 ${text(distribution?.totalCount)}곳`;
+    const list = clear('dist-list');
+    if (!places.length) return list.append(emptyRow('여유 관광지 데이터가 없습니다.'));
+    places.forEach(place => {
+        const row = el('div', 'row');
+        row.append(el('span', 'badge b-cool', `${text(place.rank)}순위`));
+        const body = el('span');
+        body.append(el('span', 'nm', place.placeName));
+        body.append(el('br'));
+        body.append(el('span', 'mt', [
+            place.category,
+            place.relatedRank ? `연관 ${place.relatedRank}위` : null,
+            place.recommendationReason
+        ].filter(Boolean).join(' · ')));
+        row.append(body);
+        row.append(el('span', 'num', place.value === null || place.value === undefined ? '-' : `${round1(place.value)}%`));
+        list.append(row);
+    });
+}
+
+function renderCompeting(competing) {
+    const festivals = competing?.festivals || [];
+    $('comp-count').textContent = `전체 ${text(competing?.totalCount)}건`;
+    const list = clear('comp-list');
+    if (!festivals.length) return list.append(emptyRow('동기간 인근 축제가 없습니다.'));
+    festivals.forEach(festival => {
+        const row = el('div', 'row');
+        row.append(el('span', 'badge b-warn', `${text(round1(festival.distanceKm))}km`));
+        const body = el('span');
+        body.append(el('span', 'nm', festival.festivalName));
+        body.append(el('br'));
+        body.append(el('span', 'mt', [
+            festival.regionName,
+            festival.lastYearVisitors ? `작년 ${number(festival.lastYearVisitors)}명` : null,
+            festival.budgetMillionWon ? `예산 ${number(festival.budgetMillionWon)}백만원` : null,
+            (festival.linkageTags || []).join(' · ') || null
+        ].filter(Boolean).join(' · ')));
+        row.append(body);
+        const period = el('span', 'num');
+        period.append(document.createTextNode(kdate(festival.startDate)), el('br'), document.createTextNode(kdate(festival.endDate)));
+        row.append(period);
+        list.append(row);
+    });
+}
+
+function renderFlow(concentration) {
+    const box = clear('flow-box');
+    const days = concentration?.dailyConcentrations || [];
+    if (!days.length) return box.append(el('p', 'empty', '집중률 예측 데이터가 없습니다.'));
+
+    const series = new Map();
+    days.forEach((day, index) => (day.places || []).forEach(place => {
+        if (!series.has(place.placeName)) series.set(place.placeName, new Array(days.length).fill(null));
+        series.get(place.placeName)[index] = place.concentrationRate;
+    }));
+
+    const width = 720, height = 230, padX = 34, padY = 14;
+    const stepX = days.length > 1 ? (width - padX * 2) / (days.length - 1) : 0;
+    const svg = svgNode('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': '개최기간 일별 집중률 예측' });
+    svg.style.width = '100%';
+    svg.style.height = 'auto';
+
+    [0, 50, 100].forEach(value => {
+        const y = padY + (height - padY * 2 - 16) * (1 - value / 100);
+        svg.append(svgNode('line', { x1: padX, y1: y, x2: width - padX, y2: y, stroke: '#E1E1DC' }));
+        svg.append(svgNode('text', { x: 2, y: y + 4, 'font-size': 10, fill: '#6A7078', 'font-family': 'monospace' }, String(value)));
+    });
+
+    const palette = ['#B23A32', '#B9822A', '#2F7D5B', '#3B6EA5', '#17604A', '#7B4C8A', '#1F2328', '#A9601F', '#4B6572', '#8A6A16'];
+    const legend = el('div', 'chips');
+    legend.style.marginTop = '10px';
+    [...series.entries()].forEach(([name, values], index) => {
+        const color = palette[index % palette.length];
+        const points = values
+            .map((value, dayIndex) => value === null ? null
+                : `${padX + stepX * dayIndex},${padY + (height - padY * 2 - 16) * (1 - value / 100)}`)
+            .filter(Boolean).join(' ');
+        svg.append(svgNode('polyline', { points, fill: 'none', stroke: color, 'stroke-width': 2 }));
+        const chip = el('span', 'chip', name);
+        chip.style.borderColor = color;
+        chip.style.color = color;
+        legend.append(chip);
+    });
+
+    days.forEach((day, index) => {
+        if (days.length > 8 && index % 2 === 1) return;
+        svg.append(svgNode('text', {
+            x: padX + stepX * index, y: height - 2, 'font-size': 10, fill: '#6A7078',
+            'text-anchor': 'middle', 'font-family': 'monospace'
+        }, String(day.date).slice(5)));
+    });
+
+    box.append(svg, legend);
+}
+
+function renderVisitors(visitors) {
+    const box = clear('visitor-box');
+    const days = visitors?.dailyVisitors || [];
+    $('visitor-ref').textContent = visitors?.referenceFestivalStartDate
+        ? `참고 ${kdate(visitors.referenceFestivalStartDate)} – ${kdate(visitors.referenceFestivalEndDate)}` : '';
+    if (!days.length) return box.append(el('p', 'empty', '방문자 데이터가 없습니다.'));
+
+    ['개최기간 평균', '직전 평균', '직후 평균'].forEach((label, index) => {
+        const value = [visitors.festivalPeriodAverage, visitors.beforePeriodAverage, visitors.afterPeriodAverage][index];
+        const row = el('div', 'meter');
+        row.append(el('span', null, label));
+        const track = el('span', 'tr');
+        const max = Math.max(Number(visitors.festivalPeriodAverage || 0), Number(visitors.beforePeriodAverage || 0), Number(visitors.afterPeriodAverage || 0), 1);
+        const fill = el('i');
+        fill.style.width = `${(Number(value || 0) / max) * 100}%`;
+        track.append(fill);
+        row.append(track);
+        row.append(el('span', 'vl', `${number(value)}명`));
+        box.append(row);
+    });
+    if (visitors.changeFromBeforePercent !== null && visitors.changeFromBeforePercent !== undefined) {
+        box.append(el('p', 'foot', `직전 대비 ${round1(visitors.changeFromBeforePercent)}%`));
+    }
+
+    const wrap = el('div', 'tb-wrap');
+    wrap.style.marginTop = '10px';
+    wrap.append(table(['날짜', '현지인', '외지인', '외국인', '전체'],
+        days.slice(0, 7).map(day => [kdate(day.date), number(day.localVisitors), number(day.outsideVisitors), number(day.foreignVisitors), number(day.totalVisitors)]),
+        [false, true, true, true, true]));
+    box.append(wrap);
+}
+
+function renderSources(statuses) {
+    $('source-count').textContent = `${statuses.filter(s => s.status === 'AVAILABLE').length} / ${statuses.length} 정상`;
+    const box = clear('source-box');
+    if (!statuses.length) return box.append(el('p', 'empty', '수집 상태 정보가 없습니다.'));
+    box.append(table(['데이터', '상태', '기준 시점', '사유'],
+        statuses.map(item => {
+            const badge = el('span', `badge ${item.status === 'AVAILABLE' ? 'b-ok' : item.status === 'FAILED' ? 'b-crit' : 'b-warn'}`,
+                STATUS_LABEL[item.status] || item.status);
+            return [item.source, badge, text(item.referencePeriod), text(item.reason)];
+        })));
+}
+
+function table(headers, rows, numeric = []) {
+    const node = el('table', 'tb');
+    const head = el('tr');
+    headers.forEach((header, index) => {
+        const th = el('th', numeric[index] ? 'num' : '', header);
+        if (numeric[index]) th.style.textAlign = 'right';
+        head.append(th);
+    });
+    node.append(head);
+    rows.forEach(row => {
+        const line = el('tr');
+        row.forEach((cell, index) => {
+            const td = el('td', numeric[index] ? 'num' : '');
+            if (cell instanceof Node) td.append(cell); else td.textContent = text(cell);
+            line.append(td);
+        });
+        node.append(line);
+    });
+    return node;
+}
+
+function emptyRow(message) {
+    const row = el('div', 'row');
+    row.append(el('span', 'mt', message));
+    return row;
+}
+
+/* ================= 지도 ================= */
+let mapsPromise = null;
+
+// Maps JS API는 한 번만 불러온다. 키는 서버 설정(/api/v1/client-config)에서 받는다.
+function loadGoogleMaps() {
+    if (mapsPromise) return mapsPromise;
+    mapsPromise = request('/api/v1/client-config').then(config => {
+        if (!config.googleMapsApiKey) {
+            throw new Error('GOOGLE_MAPS_API_KEY가 비어 있습니다. .env에 키를 넣고 앱을 재시작하세요.');
+        }
+        return new Promise((resolve, reject) => {
+            window.__mapsReady = () => resolve(window.google.maps);
+            const script = document.createElement('script');
+            script.async = true;
+            script.src = 'https://maps.googleapis.com/maps/api/js'
+                + `?key=${encodeURIComponent(config.googleMapsApiKey)}`
+                + '&language=ko&region=KR&callback=__mapsReady';
+            script.onerror = () => reject(new Error('Google Maps 스크립트를 불러오지 못했습니다. 키 제한·결제 설정을 확인하세요.'));
+            document.head.append(script);
+        });
+    });
+    mapsPromise.catch(() => { mapsPromise = null; });
+    return mapsPromise;
+}
+
+// 배지별 색이 다른 원형 마커. Advanced Marker는 Map ID가 필요해 기본 심볼을 쓴다.
+function circleSymbol(maps, color, scale) {
+    return { path: maps.SymbolPath.CIRCLE, scale, fillColor: color, fillOpacity: .9, strokeColor: '#ffffff', strokeWeight: 1.5 };
+}
+
+function clearOverlays(overlays) {
+    overlays.forEach(overlay => overlay.setMap(null));
+    overlays.length = 0;
+}
+
+async function renderMap(dashboard) {
+    const info = $('map-notice');
+    const legend = clear('map-legend');
+    const location = dashboard.festivalLocation;
+    const mapData = dashboard.map;
+
+    info.textContent = location
+        ? `${SOURCE_LABEL[location.source] || location.source}${location.notice ? ` · ${location.notice}` : ''}`
+        : '위치 정보 없음';
+
+    if (!mapData || !mapData.site) {
+        legend.append(el('span', 'chip bad', '좌표 미확보 · 반경 판정 스킵'));
+        return;
+    }
+
+    const withinCount = (mapData.places || []).filter(place => place.withinNearestRadius).length;
+    legend.append(el('span', 'chip', `관광지 ${(mapData.places || []).length}곳`));
+    legend.append(el('span', 'chip', `인근 축제 ${(mapData.nearbyFestivals || []).length}건`));
+    legend.append(el('span', location.precise ? 'chip on' : 'chip mid',
+        location.precise ? `반경 ${round1(mapData.nearestRadiusKm) ?? 1}km 이내 ${withinCount}곳` : '근사 좌표 · 반경 판정 스킵'));
+    Object.entries(BADGE).forEach(([, badge]) => {
+        const chip = el('span', 'chip', badge.label);
+        chip.style.borderColor = badge.color;
+        chip.style.color = badge.color;
+        legend.append(chip);
+    });
+
+    const maps = await loadGoogleMaps();
+    const center = { lat: Number(mapData.site.latitude), lng: Number(mapData.site.longitude) };
+    if (!state.map) {
+        state.map = new maps.Map($('map'), { center, zoom: 11, mapTypeControl: false, streetViewControl: false });
+        state.infoWindow = new maps.InfoWindow();
+    }
+    state.map.setCenter(center);
+    clearOverlays(state.overlays);
+
+    state.overlays.push(new maps.Marker({
+        map: state.map, position: center, title: '축제장', zIndex: 999, icon: circleSymbol(maps, '#17604A', 9)
+    }));
+    state.overlays.push(new maps.Circle({
+        map: state.map, center, radius: (mapData.nearestRadiusKm || 1) * 1000,
+        strokeColor: '#17604A', strokeWeight: 1, fillColor: '#17604A', fillOpacity: .06
+    }));
+
+    (mapData.places || []).forEach(place => {
+        const marker = new maps.Marker({
+            map: state.map,
+            position: { lat: Number(place.latitude), lng: Number(place.longitude) },
+            title: place.placeName,
+            icon: circleSymbol(maps, badgeOf(place.badge).color, place.withinNearestRadius ? 8 : 5)
+        });
+        marker.addListener('click', () => {
+            state.infoWindow.setContent(
+                `<div class="info-window"><strong>${place.placeName}</strong>`
+                + `${badgeOf(place.badge).label} · 상승폭 ${text(round1(place.peakIncreasePoint))}%p<br>`
+                + `${text(round1(place.distanceKm))}km · hubRank ${text(place.hubRank)} · ${text(place.category)}</div>`
+            );
+            state.infoWindow.open({ map: state.map, anchor: marker });
+        });
+        state.overlays.push(marker);
+    });
+
+    (mapData.nearbyFestivals || []).forEach(festival => {
+        if (festival.latitude === null || festival.longitude === null) return;
+        const marker = new maps.Marker({
+            map: state.map,
+            position: { lat: Number(festival.latitude), lng: Number(festival.longitude) },
+            title: festival.festivalName
+        });
+        marker.addListener('click', () => {
+            state.infoWindow.setContent(
+                `<div class="info-window"><strong>${festival.festivalName}</strong>`
+                + `${kdate(festival.startDate)} ~ ${kdate(festival.endDate)}<br>${text(round1(festival.distanceKm))}km</div>`
+            );
+            state.infoWindow.open({ map: state.map, anchor: marker });
+        });
+        state.overlays.push(marker);
+    });
+}
+
+/* ================= 개최지 선택 (API #8) ================= */
+const picker = $('picker');
+
+$('open-picker').addEventListener('click', () => {
+    $('picker-from').value = form.startDate.value;
+    const to = new Date(form.endDate.value);
+    to.setDate(to.getDate() + 60);
+    $('picker-to').value = dateText(to);
+    picker.showModal();
+    openPicker().catch(pickerFail);
+});
+$('close-picker').addEventListener('click', () => picker.close());
+$('picker-reload').addEventListener('click', () => openPicker().catch(pickerFail));
+
+function pickerFail(error) {
+    $('picker-notice').className = 'notice err';
+    $('picker-notice').textContent = error.message;
+}
+
+async function openPicker() {
+    const pickerNotice = $('picker-notice');
+    pickerNotice.className = 'notice busy';
+    pickerNotice.textContent = '축제 개최지를 불러오는 중…';
+
+    const maps = await loadGoogleMaps();
+    if (!state.pickerMap) {
+        state.pickerMap = new maps.Map($('picker-map'), {
+            center: { lat: 36.5, lng: 127.8 }, zoom: 7, mapTypeControl: false, streetViewControl: false
+        });
+        state.pickerInfoWindow = new maps.InfoWindow();
+    }
+
+    // 데이터랩 시군구 코드 51130 = 법정동 시도 51 + 시군구 130
+    const parameters = new URLSearchParams({
+        startDate: tourDate($('picker-from').value),
+        endDate: tourDate($('picker-to').value),
+        legalDongRegionCode: areaCode.value,
+        size: '100'
+    });
+    if ($('picker-signgu-only').checked) parameters.set('legalDongSignguCode', signguCode.value.slice(2));
+
+    const response = await request(`/api/v1/festivals?${parameters}`);
+    const festivals = (response.festivals || []).filter(f => f.latitude && f.longitude);
+
+    clearOverlays(state.pickerOverlays);
+    const bounds = new maps.LatLngBounds();
+    festivals.forEach(festival => {
+        const position = { lat: Number(festival.latitude), lng: Number(festival.longitude) };
+        const marker = new maps.Marker({ map: state.pickerMap, position, title: festival.title });
+        marker.addListener('click', () => showFestivalInfo(marker, festival));
+        state.pickerOverlays.push(marker);
+        bounds.extend(position);
+    });
+    if (festivals.length) state.pickerMap.fitBounds(bounds);
+
+    pickerNotice.className = 'notice';
+    pickerNotice.textContent = `총 ${response.totalCount}건 중 좌표가 있는 ${festivals.length}건을 표시했습니다. 핀을 눌러 선택하세요.`;
+}
+
+function showFestivalInfo(marker, festival) {
+    const container = el('div', 'info-window');
+    container.append(el('strong', null, festival.title));
+    container.append(el('div', null, `${text(festival.eventStartDate)} ~ ${text(festival.eventEndDate)}`));
+    container.append(el('div', null, text(festival.address)));
+    container.append(el('div', null, `contentId ${festival.contentId}`));
+    const select = el('button', null, '이 축제 선택');
+    select.type = 'button';
+    select.addEventListener('click', () => selectFestival(festival));
+    container.append(select);
+    state.pickerInfoWindow.setContent(container);
+    state.pickerInfoWindow.open({ map: state.pickerMap, anchor: marker });
+}
+
+// 기획서 5.5.2 1단계 · 재개최 축제를 고르면 contentId와 지역이 자동으로 채워진다.
+async function selectFestival(festival) {
+    form.festivalName.value = festival.title;
+    recurrenceType.value = '재개최';
+    recurrenceType.dispatchEvent(new Event('change'));
+    form.existingFestivalContentId.value = festival.contentId;
+
+    if (festival.legalDongRegionCode) {
+        areaCode.value = festival.legalDongRegionCode;
+        await loadDistricts(areaCode.value, festival.legalDongRegionCode + (festival.legalDongSignguCode || ''));
+    }
+    if (festival.eventStartDate && festival.eventEndDate) {
+        form.startDate.value = isoDate(festival.eventStartDate);
+        form.endDate.value = isoDate(festival.eventEndDate);
+    }
+
+    const picked = $('picked-festival');
+    picked.className = 'picked on';
+    picked.textContent = `선택됨: ${festival.title} (contentId ${festival.contentId}) · 좌표는 진단 시 자동 로드`;
+    state.pickerInfoWindow?.close();
+    if (picker.open) picker.close();
+}
+
+/* ================= AI 리포트 ================= */
+$('ai-button').addEventListener('click', async () => {
+    if (!state.reportId) return fail('먼저 진단을 실행하세요.');
+    const baseUrl = $('ai-base-url').value.replace(/\/+$/, '');
+    $('ai-button').disabled = true;
+    try {
+        renderAi(await request(`${baseUrl}/api/v1/reports/${state.reportId}/ai-report`, { method: 'POST' }));
+    } catch (error) {
+        clear('ai-result').append(el('p', 'notice err', `ai-service 호출 실패: ${error.message}`));
+    } finally {
+        $('ai-button').disabled = false;
+    }
+});
+
+function renderAi(ai) {
+    const root = clear('ai-result');
+    state.ai = ai;
+    (ai.warnings || []).forEach(warning => root.append(el('p', 'notice err', `⚠ ${warning}`)));
+
+    if (ai.briefing?.text) {
+        const box = el('div', 'risk INFO');
+        box.style.padding = '12px 14px';
+        const head = el('div', 'hd');
+        head.append(el('b', null, ai.briefing.source === 'AI' ? 'AI 브리핑' : '브리핑 (폴백)'));
+        box.append(head);
+        box.append(el('p', null, ai.briefing.text));
+        if (ai.briefing.disclaimer) box.append(el('div', 'ev', ai.briefing.disclaimer));
+        root.append(box);
+        // 브리핑은 PDF §1에도 반영한다.
+        if (state.dashboard) renderDoc(state.dashboard, state.report);
+    }
+
+    if ((ai.recommendations || []).length) {
+        const wrap = el('div', 'tb-wrap');
+        wrap.style.marginTop = '12px';
+        wrap.append(table(['제안', '핵심 조치', '주차 분산', '인력 배치', '선행 조치'],
+            ai.recommendations.map(item => [item.recommendationCode, item.coreAction, item.parkingDistribution, item.staffing, item.precedingAction])));
+        root.append(wrap);
+    }
+    if ((ai.placeEstimates || []).length) {
+        const wrap = el('div', 'tb-wrap');
+        wrap.style.marginTop = '12px';
+        wrap.append(table(['관광지', '추정', 'confidence', '근거'],
+            ai.placeEstimates.map(item => [item.placeName, item.displayText, item.confidence, item.reasoning])));
+        root.append(wrap);
+    }
+    if (ai.operatorPriorityNote) root.append(el('p', 'foot', ai.operatorPriorityNote));
+}
+
+/* =========================================================
+   PDF 내보내기 · 문서형(방향 B)
+   ========================================================= */
+const pdf = $('pdf');
+const doc = $('doc');
+
+$('pdf-open').addEventListener('click', () => {
+    if (!state.dashboard) return;
+    renderDoc(state.dashboard, state.report);
+    pdf.hidden = false;
+    document.body.classList.add('pdf-open');
+});
+$('pdf-close').addEventListener('click', closePdf);
+$('pdf-print').addEventListener('click', () => window.print());
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && !pdf.hidden) closePdf(); });
+
+function closePdf() {
+    pdf.hidden = true;
+    document.body.classList.remove('pdf-open');
+}
+
+function setMode(mode) {
+    doc.classList.toggle('summary', mode === 'summary');
+    $('mode-summary').setAttribute('aria-pressed', String(mode === 'summary'));
+    $('mode-full').setAttribute('aria-pressed', String(mode === 'full'));
+    $('pdf-hint').textContent = mode === 'summary'
+        ? 'A4 1쪽 · 결재·현장 첨부용 요약본'
+        : '전체 6개 절 · 근거와 데이터 한계 포함';
+}
+$('mode-summary').addEventListener('click', () => setMode('summary'));
+$('mode-full').addEventListener('click', () => setMode('full'));
+setMode('summary');
+
+function docSection(number$, title, full) {
+    const section = el('section', 'sec');
+    if (full) section.dataset.full = '';
+    const heading = el('h2');
+    heading.append(el('b', null, number$));
+    heading.append(document.createTextNode(title));
+    section.append(heading);
+    return section;
+}
+
+function docTable(headers, rows, numeric = []) {
+    const node = el('table', 'dtb');
+    const head = el('tr');
+    headers.forEach((header, index) => {
+        const th = el('th', null, header);
+        if (numeric[index]) th.style.textAlign = 'right';
+        head.append(th);
+    });
+    node.append(head);
+    rows.forEach(row => {
+        const line = el('tr');
+        row.forEach((cell, index) => {
+            const td = el('td', numeric[index] ? 'num' : '');
+            if (cell instanceof Node) td.append(cell); else td.textContent = text(cell);
+            line.append(td);
+        });
+        node.append(line);
+    });
+    return node;
+}
+
+function renderDoc(dashboard, report) {
+    const sheet = clear('sheet');
+    const diagnosis = dashboard.diagnosis || {};
+    const hero = report?.hero || {};
+    const summary = report?.summarySheet || {};
+    const evidence = report?.evidence || {};
+    const risks = report?.risks || dashboard.risks || [];
+    const proposals = report?.operationProposal?.items || dashboard.recommendations || [];
+    const profile = report?.dataSummary?.profile || dashboard.profile;
+    const verdict = verdictOf(dashboard.risks || []);
+    const name = hero.festivalName || diagnosis.festivalName || '축제';
+
+    const meta = el('div', 'docmeta');
+    meta.append(el('span', null, dashboard.reportId || '-'));
+    meta.append(el('span', null, `생성 ${new Date(evidence.generatedAt || Date.now()).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}`));
+    meta.append(el('span', null, '축제날씨 진단 리포트'));
+    sheet.append(meta);
+
+    sheet.append(el('h1', null, `${name} 개최 여건 진단`));
+    sheet.append(el('p', 'lede', [
+        `${kdate(hero.startDate || diagnosis.startDate)} ~ ${kdate(hero.endDate || diagnosis.endDate)}`,
+        dashboard.festivalLocation?.address || diagnosis.festivalAddress,
+        diagnosis.festivalType, diagnosis.scale, diagnosis.recurrenceType ? `${diagnosis.recurrenceType} 개최` : null
+    ].filter(Boolean).join(' · ')));
+
+    /* §1 개요와 판정 */
+    const s1 = docSection('§1', '개요와 판정');
+    const verdictBox = el('div', 'dverdict');
+    const stamp = el('div', `stamp t-${verdict.tone}`);
+    stamp.append(document.createTextNode(verdict.stamp));
+    stamp.append(el('small', null, verdict.stampEn));
+    verdictBox.append(stamp);
+    verdictBox.append(el('p', null, hero.briefing || state.ai?.briefing?.text || verdictSentence(dashboard)));
+    s1.append(verdictBox);
+
+    const facts = el('ul', 'facts');
+    (summary.keyFacts || []).forEach(fact => facts.append(el('li', null, fact)));
+    if (hero.diagnosisTiming) facts.append(el('li', null, `진단 시점 ${hero.diagnosisTiming} · 예측 데이터 ${hero.forecastDataActive ? '활성' : '비활성'}`));
+    if (dashboard.festivalLocation) {
+        facts.append(el('li', null, `좌표 출처 ${SOURCE_LABEL[dashboard.festivalLocation.source] || dashboard.festivalLocation.source}`
+            + `${dashboard.festivalLocation.precise ? ' · 반경 판정 유효' : ' · 근사 좌표로 일부 판정 제외'}`));
+    }
+    if (facts.children.length) s1.append(facts);
+    sheet.append(s1);
+
+    /* §2 핵심 사실 */
+    const peak = peakOf(dashboard.concentration);
+    const festivals = dashboard.competing?.festivals || [];
+    const nearest = festivals.map(f => Number(f.distanceKm)).filter(v => !Number.isNaN(v)).sort((a, b) => a - b)[0];
+    const topPlace = (dashboard.volatility?.places || [])
+        .filter(p => p.increasePoint !== null && p.increasePoint !== undefined)
+        .sort((a, b) => b.increasePoint - a.increasePoint)[0];
+    const visitors = dashboard.regionalVisitors;
+
+    const factRows = [];
+    if (peak) factRows.push(['예상 최대 집중률', `${round1(peak.rate)}%`, `${peak.placeName} · ${kdate(peak.date)}`]);
+    if (topPlace) factRows.push(['최대 상승폭', `+${round1(topPlace.increasePoint)}%p`, `${topPlace.placeName} · 자기평균 ${round1(topPlace.selfAverage)}%`]);
+    factRows.push(['동기간 인근 축제', `${text(dashboard.competing?.totalCount)}건`, nearest !== undefined ? `최근접 ${round1(nearest)}km` : '겹치는 축제 없음']);
+    factRows.push(['여유 관광지', `${text(dashboard.distribution?.totalCount)}곳`, `관광지 변동 대상 ${text(dashboard.volatility?.totalCount)}곳`]);
+    if (visitors?.festivalPeriodAverage) {
+        factRows.push(['시군구 방문자(참고)', `${number(visitors.festivalPeriodAverage)}명`,
+            visitors.changeFromBeforePercent !== null && visitors.changeFromBeforePercent !== undefined
+                ? `직전 대비 ${round1(visitors.changeFromBeforePercent)}%` : '-']);
+    }
+    const s2 = docSection('§2', '핵심 사실');
+    s2.append(docTable(['항목', '값', '비교 기준'], factRows, [false, true, false]));
+    sheet.append(s2);
+
+    /* §3 리스크 (요약본에도 포함) */
+    const sRisk = docSection('§3', `리스크 ${risks.length}건`);
+    if (!risks.length) {
+        sRisk.append(el('p', 'dnote', '매칭된 리스크가 없습니다.'));
+    } else {
+        sRisk.append(docTable(['심각도', '내용', '연계 제안'], risks.map(risk => {
+            const severityCell = el('div');
+            severityCell.append(el('span', `dsev ${risk.severity}`, risk.severity));
+            severityCell.append(el('div', 'code', risk.riskCode));
+            const bodyCell = el('div');
+            bodyCell.append(el('b', null, risk.title || risk.riskCode));
+            if (risk.description) bodyCell.append(el('div', 'sm', risk.description));
+            return [severityCell, bodyCell, (risk.recommendationCodes || []).join(', ') || '-'];
+        }), [false, false, true]));
+    }
+    sheet.append(sRisk);
+
+    /* §4 운영 조정 제안 (요약본에도 포함) */
+    const sProposal = docSection('§4', '운영 조정 제안');
+    if (report?.operationProposal?.guidanceNote) sProposal.append(el('p', 'dnote', report.operationProposal.guidanceNote));
+    if (!proposals.length) {
+        sProposal.append(el('p', 'dnote', '연계된 제안이 없습니다.'));
+    } else {
+        sProposal.append(docTable(['코드', '조치', '난이도'], proposals.map(item => {
+            const bodyCell = el('div');
+            bodyCell.append(el('b', null, item.title || item.recommendationCode));
+            if (item.defaultAction) bodyCell.append(el('div', 'sm', item.defaultAction));
+            if ((item.relatedRiskCodes || []).length) bodyCell.append(el('div', 'code', `연계 ${item.relatedRiskCodes.join(', ')}`));
+            return [item.recommendationCode, bodyCell, text(item.difficulty)];
+        }), [true, false, true]));
+    }
+    sheet.append(sProposal);
+
+    /* §5 데이터 요약 (전체 리포트 전용) */
+    const sData = docSection('§5', '데이터 요약', true);
+    if (profile) {
+        PROFILE_AXES.forEach(([label, key]) => {
+            const metric = profile[key];
+            const row = el('div', 'dmeter');
+            row.append(el('span', null, label));
+            const track = el('span', 'tr');
+            const fill = el('i');
+            fill.style.width = `${ratio(metric)}%`;
+            track.append(fill);
+            row.append(track);
+            row.append(el('span', 'vl', metricText(metric)));
+            sData.append(row);
+        });
+        (profile.notes || []).forEach(note => sData.append(el('p', 'dnote', note)));
+    }
+    const volatilityPlaces = dashboard.volatility?.places || [];
+    if (volatilityPlaces.length) {
+        sData.append(el('p', 'dnote', '관광지 변동 상황'));
+        sData.append(docTable(['관광지', '배지', '상승폭', '최고 집중률', '최대 발생일'], volatilityPlaces.map(place => [
+            place.placeName,
+            badgeOf(place.level).label,
+            place.increasePoint === null || place.increasePoint === undefined ? '-' : `${round1(place.increasePoint)}%p`,
+            place.peakRate === null || place.peakRate === undefined ? '-' : `${round1(place.peakRate)}%`,
+            kdate(place.peakDate)
+        ]), [false, false, true, true, true]));
+    }
+    if (festivals.length) {
+        sData.append(el('p', 'dnote', '동기간 인근 축제'));
+        sData.append(docTable(['축제명', '기간', '거리', '작년 방문'], festivals.map(festival => [
+            festival.festivalName,
+            `${kdate(festival.startDate)} ~ ${kdate(festival.endDate)}`,
+            `${text(round1(festival.distanceKm))}km`,
+            festival.lastYearVisitors ? `${number(festival.lastYearVisitors)}명` : '-'
+        ]), [false, true, true, true]));
+    }
+    sheet.append(sData);
+
+    /* §6 근거와 한계 (전체 리포트 전용) */
+    const sEvidence = docSection('§6', '근거와 한계', true);
+    const statuses = evidence.dataStatuses || dashboard.dataStatuses || [];
+    if (statuses.length) {
+        sEvidence.append(docTable(['데이터', '상태', '기준 시점', '사유'], statuses.map(item => [
+            item.source,
+            el('span', `dstatus ${item.status}`, STATUS_LABEL[item.status] || item.status),
+            text(item.referencePeriod),
+            text(item.reason)
+        ]), [false, false, true, false]));
+    }
+    (evidence.referencePeriodNotes || []).forEach(note => sEvidence.append(el('p', 'dnote', note)));
+    const limitation = evidence.limitationNote || summary.limitationNote;
+    if (limitation) sEvidence.append(el('p', 'dnote', limitation));
+    if (summary.dataSourceNote) sEvidence.append(el('p', 'dnote', summary.dataSourceNote));
+    if (dashboard.festivalLocation?.notice) sEvidence.append(el('p', 'dnote', dashboard.festivalLocation.notice));
+    sheet.append(sEvidence);
+}
+</script>
 </body>
 </html>
