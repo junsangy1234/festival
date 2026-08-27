@@ -7,6 +7,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       TOUR_API_KEY: ${TOUR_API_KEY}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-festival}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-festival}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-festival}
