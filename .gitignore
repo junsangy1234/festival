@@ -47,3 +47,6 @@ __pycache__/
 cache/
 *.json.tmp
 !.vscode/tasks.json
+/diagnosis.json
+/diagnosis-request.json
+/expanded-recommendations.json
