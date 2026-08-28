@@ -44,7 +44,8 @@ __pycache__/
 .venv/
 
 ### 로컬 캐시·임시 산출물 ###
-cache/
+# 루트 캐시만. infra/cache 같은 소스 디렉터리까지 잡히지 않게 앞에 /를 붙인다.
+/cache/
 *.json.tmp
 !.vscode/tasks.json
 /diagnosis.json

@@ -2,6 +2,7 @@ package com.junsang.festival.infra.cache;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,7 @@ import java.util.TreeMap;
 import java.util.function.Supplier;
 
 // 외부 API 원본 응답을 JSON 파일로 보관하고 TTL 안에서는 재사용한다.
+@Slf4j
 @Component
 public class FileJsonCache {
 
@@ -37,6 +39,7 @@ public class FileJsonCache {
         Map<String, String> normalizedParameters = Map.copyOf(new TreeMap<>(requestParameters));
         Path cacheFile = cacheFile(source, normalizedParameters);
         CacheEntry cached = readIfFresh(cacheFile, ttl);
+        log.info("외부 API 캐시 {}: {}", cached != null ? "히트" : "미스", source);
         if (cached != null) {
             return new CachedExternalData(
                     cached.source(), cached.payload(), cached.requestParameters(), cached.retrievedAt(), true
