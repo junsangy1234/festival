@@ -25,7 +25,9 @@ festival:
     regional-visitors-ttl: PT24H
     festival-search-ttl: PT1H
   external-data:
-    related-base-year-month: ${RELATED_TOURISM_BASE_YM:202503}
+    # 비워 두면 현재에서 related-base-months-back개월 물러난 연월을 자동 계산한다.
+    related-base-year-month: ${RELATED_TOURISM_BASE_YM:}
+    related-base-months-back: ${RELATED_TOURISM_MONTHS_BACK:5}
     visitor-reference-years-back: ${VISITOR_REFERENCE_YEARS_BACK:1}
     # CSV #9 문체부 지역축제 개최 계획 현황. 파일이 없으면 재개최 실적 조인만 비활성된다.
     festival-history-csv: ${FESTIVAL_HISTORY_CSV:classpath:data/festival-history.csv}

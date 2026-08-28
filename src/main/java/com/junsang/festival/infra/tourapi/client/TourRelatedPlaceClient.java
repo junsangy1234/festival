@@ -27,7 +27,7 @@ public class TourRelatedPlaceClient {
     private final TourApiClient tourApiClient;
     private final FileJsonCache fileJsonCache;
     private final Duration cacheTtl;
-    private final String baseYearMonth;
+    private final TourExternalDataProperties properties;
 
     public TourRelatedPlaceClient(
             TourApiClient tourApiClient,
@@ -38,7 +38,7 @@ public class TourRelatedPlaceClient {
         this.tourApiClient = tourApiClient;
         this.fileJsonCache = fileJsonCache;
         this.cacheTtl = cacheTtl;
-        this.baseYearMonth = properties.relatedBaseYearMonth();
+        this.properties = properties;
     }
 
     // 설정된 기준 연월과 개최 지역의 연관 관광지를 모두 조회한다.
@@ -63,7 +63,7 @@ public class TourRelatedPlaceClient {
     // 실제 요청 조건을 캐시 키에 포함해 한 페이지의 원본 JSON을 조회한다.
     public CachedExternalData getPage(String areaCode, String signguCode, int pageNo) {
         Map<String, String> parameters = new LinkedHashMap<>();
-        parameters.put("baseYm", baseYearMonth);
+        parameters.put("baseYm", properties.resolvedRelatedBaseYearMonth());
         parameters.put("areaCd", areaCode);
         parameters.put("signguCd", signguCode);
         parameters.put("pageNo", String.valueOf(pageNo));

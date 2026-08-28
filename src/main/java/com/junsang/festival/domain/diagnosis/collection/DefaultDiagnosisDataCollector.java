@@ -176,7 +176,7 @@ public class DefaultDiagnosisDataCollector implements DiagnosisDataCollector {
     }
 
     private ExternalDataResult<RelatedPlaceAnalysisResult> related(Diagnosis diagnosis) {
-        String period = externalDataProperties.relatedBaseYearMonth();
+        String period = externalDataProperties.resolvedRelatedBaseYearMonth();
         try {
             var items = relatedPlaceClient.getAll(diagnosis.getAreaCode(), diagnosis.getSignguCode());
             if (items.isEmpty()) {
@@ -190,7 +190,7 @@ public class DefaultDiagnosisDataCollector implements DiagnosisDataCollector {
 
     // API #6 · 뷰 03 강화와 R-VOL-005 좌표 정밀화에 쓰는 중심 관광지 목록
     private ExternalDataResult<List<TourHubAttractionItem>> hubAttractions(Diagnosis diagnosis) {
-        String period = externalDataProperties.relatedBaseYearMonth();
+        String period = externalDataProperties.resolvedRelatedBaseYearMonth();
         try {
             List<TourHubAttractionItem> items =
                     hubAttractionClient.getAll(diagnosis.getAreaCode(), diagnosis.getSignguCode());

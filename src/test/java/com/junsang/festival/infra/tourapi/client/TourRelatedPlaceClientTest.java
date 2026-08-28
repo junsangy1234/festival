@@ -16,7 +16,7 @@ class TourRelatedPlaceClientTest {
     @Test
     void parsesRelatedPlaceResponse() throws Exception {
         TourRelatedPlaceClient client = new TourRelatedPlaceClient(
-                null, null, null, new TourExternalDataProperties("202503", 1)
+                null, null, null, new TourExternalDataProperties("202503", 5, 1)
         );
         String response = """
                 {
