@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "festival-local",
+      "runtimeExecutable": ".\\gradlew.bat",
+      "runtimeArgs": ["bootRun", "--args=--spring.profiles.active=local"],
+      "port": 8080
+    }
+  ]
+}
