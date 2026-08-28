@@ -61,7 +61,7 @@ diagnosis:
         priority: 5
         title: "연계 관광 코스 재편"
         default-action: "연계성 하락을 보완할 관광 코스를 재편한다."
-        related-risk-codes: [R-YEAR-002]
+        related-risk-codes: [R-YEAR-004]
         category: 분산
         difficulty: 중
         enabled: false

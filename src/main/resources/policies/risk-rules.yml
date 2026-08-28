@@ -137,7 +137,8 @@ diagnosis:
         evidence-fields: [previousScore, currentScore]
         recommendation-codes: []
         enabled: false
-      - risk-code: R-YEAR-002
+      # R-YEAR-002가 "최초 개최 3년 이내" 규칙과 중복되어 코드를 분리했다.
+      - risk-code: R-YEAR-004
         title: "작년 대비 연계성 하락"
         description: "작년 대비 연계성이 {value}p 변화했습니다."
         severity: WARNING
